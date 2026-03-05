@@ -29,7 +29,7 @@ class AuthController extends Controller
 
         if ($student) {
             $token = $student->createToken('lms-react-app')->plainTextToken;
-            $student->load(['curriculum', 'academicLevel']);
+            $student->load(['curriculum', 'academicLevel', 'subjects', 'targetCareer.pathway']);
             return response()->json(['user' => $student, 'token' => $token]);
         }
 
@@ -57,7 +57,7 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user()->load(['curriculum', 'academicLevel']);
+        $user = $request->user()->load(['curriculum', 'academicLevel', 'subjects', 'targetCareer.pathway']);
         return response()->json($user);
     }
 }

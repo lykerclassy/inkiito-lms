@@ -14,6 +14,11 @@ import SubjectDetails from './pages/student/SubjectDetails';
 import LessonView from './pages/student/LessonView';
 import Assignments from './pages/student/Assignments';
 import Grades from './pages/student/Grades';
+import KeyboardingTracker from './pages/student/KeyboardingTracker';
+import EnglishLearning from './pages/student/EnglishLearning';
+import ICTLab from './pages/student/ICTLab';
+import ScienceLab from './pages/student/ScienceLab';
+import CareerExplorer from './pages/student/CareerExplorer';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -23,6 +28,13 @@ import UserManagement from './pages/admin/UserManagement';
 import AdminAssignments from './pages/admin/Assignments';
 import AssignmentBuilder from './pages/admin/AssignmentBuilder';
 import AdminGrades from './pages/admin/Grades';
+import Settings from './pages/admin/Settings';
+import HardwareManager from './pages/admin/HardwareManager';
+import ScienceLabManager from './pages/admin/ScienceLabManager';
+import CareerManager from './pages/admin/CareerManager';
+
+// Shared Pages
+import Profile from './pages/common/Profile';
 
 // --- ROLE GROUPS ---
 const ALL_STAFF = ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher'];
@@ -33,7 +45,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     // If they lack permission, send them to their respective safe zone
     return <Navigate to={user.role === 'student' ? "/student/dashboard" : "/admin/dashboard"} replace />;
@@ -63,38 +75,65 @@ export default function App() {
                 <Route path="lessons/:id" element={<LessonView />} />
                 <Route path="assignments" element={<Assignments />} />
                 <Route path="grades" element={<Grades />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="typing" element={<KeyboardingTracker />} />
+                <Route path="english" element={<EnglishLearning />} />
+                <Route path="ict-lab" element={<ICTLab />} />
+                <Route path="science-lab" element={<ScienceLab />} />
+                <Route path="future-focus" element={<CareerExplorer />} />
               </Routes>
             </StudentLayout>
           </ProtectedRoute>
         } />
-        
+
         {/* --- ADMIN / STAFF ROUTES --- */}
         <Route path="/admin/*" element={
-            // The Layout itself requires basic staff access
-            <ProtectedRoute allowedRoles={ALL_STAFF}>
-              <AdminLayout>
-                  <Routes>
-                      {/* Universally accessible staff pages */}
-                      <Route path="dashboard" element={<AdminDashboard />} />
-                      <Route path="lessons/:id/edit" element={<LessonBuilder />} />
-                      <Route path="assignments" element={<AdminAssignments />} />
-                      <Route path="assignments/:id/edit-content" element={<AssignmentBuilder />} />
-                      <Route path="grades" element={<AdminGrades />} />
+          // The Layout itself requires basic staff access
+          <ProtectedRoute allowedRoles={ALL_STAFF}>
+            <AdminLayout>
+              <Routes>
+                {/* Universally accessible staff pages */}
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="lessons/:id/edit" element={<LessonBuilder />} />
+                <Route path="assignments" element={<AdminAssignments />} />
+                <Route path="assignments/:id/edit-content" element={<AssignmentBuilder />} />
+                <Route path="grades" element={<AdminGrades />} />
+                <Route path="profile" element={<Profile />} />
 
-                      {/* RESTRICTED PAGES: Only Management can access these */}
-                      <Route path="curriculum" element={
-                          <ProtectedRoute allowedRoles={MANAGEMENT}>
-                              <CurriculumManager />
-                          </ProtectedRoute>
-                      } />
-                      <Route path="users" element={
-                          <ProtectedRoute allowedRoles={MANAGEMENT}>
-                              <UserManagement />
-                          </ProtectedRoute>
-                      } />
-                  </Routes>
-              </AdminLayout>
-            </ProtectedRoute>
+                {/* RESTRICTED PAGES: Only Management can access these */}
+                <Route path="curriculum" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <CurriculumManager />
+                  </ProtectedRoute>
+                } />
+                <Route path="users" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <UserManagement />
+                  </ProtectedRoute>
+                } />
+                <Route path="settings" element={
+                  <ProtectedRoute allowedRoles={['admin', 'developer']}>
+                    <Settings />
+                  </ProtectedRoute>
+                } />
+                <Route path="lab-assets" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <HardwareManager />
+                  </ProtectedRoute>
+                } />
+                <Route path="science-labs" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <ScienceLabManager />
+                  </ProtectedRoute>
+                } />
+                <Route path="career-mapping" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <CareerManager />
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </AdminLayout>
+          </ProtectedRoute>
         } />
 
         <Route path="*" element={<Navigate to="/login" replace />} />

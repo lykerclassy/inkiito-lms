@@ -25,6 +25,7 @@ class User extends Authenticatable
         'role',
         'curriculum_id',
         'academic_level_id',
+        'target_career_id',
     ];
 
     /**
@@ -69,5 +70,29 @@ class User extends Authenticatable
     public function subjects()
     {
         return $this->belongsToMany(Subject::class)->withPivot('status')->withTimestamps();
+    }
+
+    /**
+     * Get the career goal of the student.
+     */
+    public function targetCareer()
+    {
+        return $this->belongsTo(Career::class, 'target_career_id');
+    }
+
+    /**
+     * Get the student's quiz scores.
+     */
+    public function quizResults()
+    {
+        return $this->hasMany(QuizResult::class);
+    }
+
+    /**
+     * Get the student's assignment submissions.
+     */
+    public function assignmentSubmissions()
+    {
+        return $this->hasMany(AssignmentSubmission::class, 'student_id');
     }
 }

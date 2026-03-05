@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@media print {
+
+    .no-print,
+    nav,
+    aside,
+    header,
+    button,
+    .sidebar-admin {
+        display: none !important;
+    }
+
+    body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .max-h-\[90vh\] {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .fixed.inset-0 {
+        position: relative !important;
+        display: block !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        z-index: auto !important;
+    }
+
+    .bg-white.rounded-\[2rem\] {
+        border: none !important;
+        box-shadow: none !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+    }
+}

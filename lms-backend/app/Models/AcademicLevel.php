@@ -13,8 +13,7 @@ class AcademicLevel extends Model
 
     public function curriculum()
     {
-        // Notice we still specify 'curriculums' here just to be safe!
-        return $this->belongsTo(Curriculum::class, 'curriculum_id')->setModel('App\Models\Curriculum');
+        return $this->belongsTo(Curriculum::class, 'curriculum_id');
     }
 
     public function subjects()

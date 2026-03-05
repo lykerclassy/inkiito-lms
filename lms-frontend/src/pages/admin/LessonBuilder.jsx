@@ -10,7 +10,7 @@ import Button from '../../components/common/Button';
 export default function LessonBuilder() {
     const { id } = useParams();
     const navigate = useNavigate();
-    
+
     const [lesson, setLesson] = useState(null);
     const [blocks, setBlocks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -21,7 +21,7 @@ export default function LessonBuilder() {
             try {
                 const response = await api.get(`/lessons/${id}`);
                 setLesson(response.data);
-                
+
                 const parsedBlocks = response.data.blocks.map(b => ({
                     ...b,
                     content: typeof b.content === 'string' ? JSON.parse(b.content) : b.content
@@ -44,14 +44,16 @@ export default function LessonBuilder() {
 
     const addNewBlock = (type) => {
         let defaultContent = {};
-        
+
         if (type === 'text') defaultContent = { html: '' };
         if (type === 'image') defaultContent = { url: '', caption: '' };
+        if (type === 'youtube') defaultContent = { url: '' };
+        if (type === 'video') defaultContent = { url: '', caption: '' };
         if (type === 'quiz') defaultContent = { question: '', options: ['', '', '', ''], correct_answer: '' };
-        if (type === 'code_editor') defaultContent = { 
-            language: 'html', 
-            instructions: 'Write your code here:', 
-            initial_code: '<h1>Hello World</h1>' 
+        if (type === 'code_editor') defaultContent = {
+            language: 'html',
+            instructions: 'Write your code here:',
+            initial_code: '<h1>Hello World</h1>'
         };
 
         const newBlock = {
@@ -75,9 +77,9 @@ export default function LessonBuilder() {
         try {
             await api.put(`/lessons/${id}/blocks`, { blocks });
             alert('Lesson blocks saved successfully!');
-            
+
             // Optionally, refresh the page to get the true database IDs for any new blocks
-            window.location.reload(); 
+            window.location.reload();
         } catch (error) {
             console.error("Failed to save blocks", error);
             alert("An error occurred while saving. Please try again.");
@@ -90,7 +92,7 @@ export default function LessonBuilder() {
         toolbar: [
             [{ 'header': [1, 2, 3, false] }],
             ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
             ['link', 'clean']
         ],
     };
@@ -100,10 +102,10 @@ export default function LessonBuilder() {
 
     return (
         <div className="max-w-5xl mx-auto space-y-6 pb-20">
-            
+
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 z-10">
                 <div>
-                    <button 
+                    <button
                         onClick={() => navigate('/admin/curriculum')}
                         className="text-sm text-gray-500 hover:text-blue-600 mb-1 flex items-center gap-1 font-medium"
                     >
@@ -124,7 +126,7 @@ export default function LessonBuilder() {
             <div className="space-y-6">
                 {blocks.map((block, index) => (
                     <Card key={block.id} className="relative group border-2 border-transparent hover:border-blue-100 transition-colors">
-                        
+
                         <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-100 px-2 py-1 rounded">
                                 {block.type.replace('_', ' ')}
@@ -138,7 +140,7 @@ export default function LessonBuilder() {
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-gray-700">Text Content</label>
                                 <div className="bg-white rounded-lg overflow-hidden border border-gray-300">
-                                    <ReactQuill 
+                                    <ReactQuill
                                         theme="snow"
                                         modules={quillModules}
                                         value={block.content.html || ''}
@@ -151,20 +153,104 @@ export default function LessonBuilder() {
 
                         {block.type === 'image' && (
                             <div className="space-y-4 mt-8">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Image URL</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={block.content.url || ''}
-                                        onChange={(e) => updateBlockContent(index, { ...block.content, url: e.target.value })}
-                                        placeholder="https://example.com/image.jpg"
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Image URL</label>
+                                        <input
+                                            type="text"
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={block.content.url || ''}
+                                            onChange={(e) => updateBlockContent(index, { ...block.content, url: e.target.value })}
+                                            placeholder="https://example.com/image.jpg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Or Upload from PC</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        updateBlockContent(index, { ...block.content, url: reader.result });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Caption (Optional)</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={block.content.caption || ''}
+                                        onChange={(e) => updateBlockContent(index, { ...block.content, caption: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {block.type === 'youtube' && (
+                            <div className="space-y-4 mt-8">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">YouTube Video URL</label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={block.content.url || ''}
+                                        onChange={(e) => updateBlockContent(index, { ...block.content, url: e.target.value })}
+                                        placeholder="https://www.youtube.com/watch?v=..."
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {block.type === 'video' && (
+                            <div className="space-y-4 mt-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Video URL (Direct MP4/WebM)</label>
+                                        <input
+                                            type="text"
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={block.content.url || ''}
+                                            onChange={(e) => updateBlockContent(index, { ...block.content, url: e.target.value })}
+                                            placeholder="https://example.com/video.mp4"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Or Upload Video</label>
+                                        <input
+                                            type="file"
+                                            accept="video/*"
+                                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    // Limit file size for Base64 (suggested max 50MB for this demo style)
+                                                    if (file.size > 50 * 1024 * 1024) {
+                                                        alert("Video file too large. Please use a URL for larger videos.");
+                                                        return;
+                                                    }
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        updateBlockContent(index, { ...block.content, url: reader.result });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Caption (Optional)</label>
+                                    <input
+                                        type="text"
                                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={block.content.caption || ''}
                                         onChange={(e) => updateBlockContent(index, { ...block.content, caption: e.target.value })}
@@ -177,8 +263,8 @@ export default function LessonBuilder() {
                             <div className="space-y-4 mt-8">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Question</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium"
                                         value={block.content.question || ''}
                                         onChange={(e) => updateBlockContent(index, { ...block.content, question: e.target.value })}
@@ -188,8 +274,8 @@ export default function LessonBuilder() {
                                     {block.content.options.map((opt, optIndex) => (
                                         <div key={optIndex}>
                                             <label className="block text-xs font-semibold text-gray-500 mb-1">Option {optIndex + 1}</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${block.content.correct_answer === opt && opt !== '' ? 'border-green-500 ring-green-200 bg-green-50' : 'border-gray-300 focus:ring-blue-500'}`}
                                                 value={opt}
                                                 onChange={(e) => {
@@ -221,7 +307,7 @@ export default function LessonBuilder() {
                             <div className="space-y-4 mt-8">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Exercise Instructions</label>
-                                    <textarea 
+                                    <textarea
                                         className="w-full h-20 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={block.content.instructions || ''}
                                         onChange={(e) => updateBlockContent(index, { ...block.content, instructions: e.target.value })}
@@ -230,7 +316,7 @@ export default function LessonBuilder() {
                                 <div className="flex gap-4">
                                     <div className="w-1/3">
                                         <label className="block text-sm font-semibold text-gray-700 mb-1">Language</label>
-                                        <select 
+                                        <select
                                             className="w-full p-3 border border-gray-300 rounded-lg outline-none bg-white"
                                             value={block.content.language || 'html'}
                                             onChange={(e) => updateBlockContent(index, { ...block.content, language: e.target.value })}
@@ -270,6 +356,8 @@ export default function LessonBuilder() {
                 <div className="flex flex-wrap justify-center gap-3">
                     <Button variant="outline" onClick={() => addNewBlock('text')}>+ Text Paragraph</Button>
                     <Button variant="outline" onClick={() => addNewBlock('image')}>+ Image</Button>
+                    <Button variant="outline" onClick={() => addNewBlock('youtube')}>+ YouTube</Button>
+                    <Button variant="outline" onClick={() => addNewBlock('video')}>+ Local/URL Video</Button>
                     <Button variant="outline" onClick={() => addNewBlock('quiz')}>+ Multiple Choice Quiz</Button>
                     <Button variant="primary" onClick={() => addNewBlock('code_editor')}>
                         + Interactive Code Exercise

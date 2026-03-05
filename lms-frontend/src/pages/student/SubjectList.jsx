@@ -1,56 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../services/api';
+import { AuthContext } from '../../contexts/AuthContext';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import EnrollmentIndicator from '../../components/common/EnrollmentIndicator';
 import ProgressBar from '../../components/common/ProgressBar';
 
 export default function SubjectList() {
-    const [subjects, setSubjects] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
+    const { user } = useContext(AuthContext);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        const fetchSubjects = async () => {
-            try {
-                // Fetch the subjects for the currently logged-in student
-                const response = await api.get('/subjects');
-                setSubjects(response.data);
-            } catch (err) {
-                console.error("Failed to fetch subjects:", err);
-                setError('Could not load your subjects. Please try again later.');
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    // Securely read assigned user subjects directly from internal token payload context.
+    // This fully isolates the list and prevents random fetch access to opposing curriculums.
+    const subjects = user?.subjects || [];
 
-        fetchSubjects();
-    }, []);
-
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                <svg className="animate-spin h-10 w-10 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <p className="text-gray-500 font-medium">Loading your subjects...</p>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="bg-red-50 text-red-600 p-6 rounded-xl border border-red-100 text-center">
-                <p>{error}</p>
-                <Button onClick={() => window.location.reload()} className="mt-4" variant="outline">
-                    Retry
-                </Button>
-            </div>
-        );
-    }
+    // Component logic shifts straight to rendering as state is handled at router level
 
     return (
         <div className="space-y-6">
@@ -79,14 +43,14 @@ export default function SubjectList() {
                                     <h3 className="text-xl font-bold text-gray-800">{subject.name}</h3>
                                 </div>
                             </div>
-                            
+
                             <div className="mb-6 flex-1">
                                 {/* Since we don't have real progress calculations in the backend yet, 
                                     we mock a progress value to demonstrate the UI */}
                                 <ProgressBar progress={0} label="Course Completion" />
                             </div>
 
-                            <Button 
+                            <Button
                                 onClick={() => navigate(`/student/subjects/${subject.id}`)}
                                 className="w-full"
                                 variant="outline"

@@ -7,7 +7,7 @@ import EnrollmentIndicator from '../../components/common/EnrollmentIndicator';
 export default function UserManagement() {
     const [activeTab, setActiveTab] = useState('students');
     const [searchQuery, setSearchQuery] = useState('');
-    
+
     // Database State
     const [users, setUsers] = useState([]);
     const [allSubjects, setAllSubjects] = useState([]); // Needed for the "Add Subject" dropdown
@@ -18,7 +18,20 @@ export default function UserManagement() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [addError, setAddError] = useState('');
-    
+
+    // Edit User Modal State
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [editError, setEditError] = useState('');
+
+    // Import CSV State
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [importFile, setImportFile] = useState(null);
+    const [isImporting, setIsImporting] = useState(false);
+    const [importError, setImportError] = useState('');
+    const [importRole, setImportRole] = useState('student');
+
     // Form Data State
     const initialFormState = {
         name: '', role: 'student', email: '', password: '',
@@ -67,7 +80,7 @@ export default function UserManagement() {
     };
 
     const handleStatusChange = (subjectId, newStatus) => {
-        setEditingEnrollments(prev => prev.map(env => 
+        setEditingEnrollments(prev => prev.map(env =>
             env.subject_id === subjectId ? { ...env, status: newStatus } : env
         ));
     };
@@ -102,7 +115,7 @@ export default function UserManagement() {
             await api.put(`/users/${selectedStudent.id}/enrollments`, {
                 enrollments: formattedData
             });
-            
+
             // Refresh background data to show updated ticks
             await fetchData();
             setSelectedStudent(null);
@@ -141,6 +154,76 @@ export default function UserManagement() {
         }
     };
 
+    const handleUpdateUser = async (e) => {
+        e.preventDefault();
+        setIsUpdating(true);
+        setEditError('');
+
+        try {
+            await api.put(`/users/${editingUser.id}`, formData);
+            await fetchData();
+            setIsEditModalOpen(false);
+            alert("User updated successfully!");
+        } catch (err) {
+            setEditError(err.response?.data?.message || 'Failed to update user.');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId) => {
+        if (!window.confirm("ARE YOU SURE? This will permanently delete this user and all their records (grades, etc). This cannot be undone.")) return;
+
+        try {
+            await api.delete(`/users/${userId}`);
+            await fetchData();
+            alert("User deleted successfully.");
+        } catch (err) {
+            alert(err.response?.data?.message || "Failed to delete user.");
+        }
+    };
+
+    const handleImportCSV = async (e) => {
+        e.preventDefault();
+        if (!importFile) return;
+
+        setIsImporting(true);
+        setImportError('');
+
+        const data = new FormData();
+        data.append('file', importFile);
+        data.append('role', importRole);
+
+        try {
+            const res = await api.post('/users/import-csv', data, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            await fetchData();
+            setIsImportModalOpen(false);
+            setImportFile(null);
+            alert(res.data.message);
+        } catch (err) {
+            setImportError(err.response?.data?.message || 'Import failed. Check CSV format.');
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const openEditModal = (user) => {
+        setEditingUser(user);
+        setFormData({
+            name: user.name || '',
+            role: user.role || 'student',
+            email: user.email || '',
+            admission_number: user.admission_number || '',
+            curriculum_id: user.curriculum_id || '1',
+            academic_level_id: user.academic_level_id || '1',
+            password: '', // Leave clear
+            access_key: user.access_key || ''
+        });
+        setIsEditModalOpen(true);
+    };
+
     // --- HELPER FORMATTING ---
     const formatRole = (role) => {
         const roles = {
@@ -161,15 +244,15 @@ export default function UserManagement() {
         // Show students in Student tab, and ALL other roles in Staff tab
         const matchesTab = activeTab === 'students' ? user.role === 'student' : user.role !== 'student';
         const searchLower = searchQuery.toLowerCase();
-        const matchesSearch = 
-            (user.name && user.name.toLowerCase().includes(searchLower)) || 
+        const matchesSearch =
+            (user.name && user.name.toLowerCase().includes(searchLower)) ||
             (user.email && user.email.toLowerCase().includes(searchLower)) ||
             (user.admission_number && user.admission_number.toLowerCase().includes(searchLower));
         return matchesTab && matchesSearch;
     });
 
     // Compute which subjects the student is NOT currently enrolled in for the dropdown
-    const availableToAdd = allSubjects.filter(sub => 
+    const availableToAdd = allSubjects.filter(sub =>
         !editingEnrollments.some(env => env.subject_id === sub.id)
     );
 
@@ -178,15 +261,18 @@ export default function UserManagement() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto relative">
-            
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
                     <p className="text-gray-500 mt-1">Manage staff access and student enrollments across frameworks.</p>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="outline">Import CSV</Button>
-                    <Button variant="primary" onClick={() => setIsAddModalOpen(true)}>
+                    <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>Import CSV</Button>
+                    <Button variant="primary" onClick={() => {
+                        setFormData(initialFormState);
+                        setIsAddModalOpen(true);
+                    }}>
                         + Add New User
                     </Button>
                 </div>
@@ -257,14 +343,24 @@ export default function UserManagement() {
                                                 <td className="px-6 py-4 text-green-600 font-medium text-sm">Active</td>
                                             </>
                                         )}
-                                        <td className="px-6 py-4 text-right">
-                                            {activeTab === 'students' ? (
+                                        <td className="px-6 py-4 flex justify-end gap-2">
+                                            {activeTab === 'students' && (
                                                 <Button size="sm" variant="outline" onClick={() => openEnrollmentModal(user)}>
-                                                    Manage Enrollments
+                                                    Enrollments
                                                 </Button>
-                                            ) : (
-                                                <button className="text-blue-600 hover:text-blue-800 font-medium text-sm">Edit Profile</button>
                                             )}
+                                            <button
+                                                onClick={() => openEditModal(user)}
+                                                className="p-1 px-3 text-blue-600 hover:bg-blue-50 rounded border border-blue-100 font-medium transition-colors text-xs uppercase"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteUser(user.id)}
+                                                className="p-1 px-3 text-red-500 hover:bg-red-50 rounded border border-red-100 font-medium transition-colors text-xs uppercase"
+                                            >
+                                                Delete
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
@@ -284,13 +380,13 @@ export default function UserManagement() {
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        
+
                         <form onSubmit={handleCreateUser}>
                             <div className="p-6 space-y-4">
                                 {addError && <div className="p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100">{addError}</div>}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">User Role</label>
-                                    <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-medium" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}>
+                                    <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-medium" value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}>
                                         <optgroup label="Learners">
                                             <option value="student">Student</option>
                                         </optgroup>
@@ -311,25 +407,25 @@ export default function UserManagement() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                                    <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Jane Doe" />
+                                    <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Jane Doe" />
                                 </div>
                                 {formData.role === 'student' ? (
                                     <>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number</label>
-                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({...formData, admission_number: e.target.value.toUpperCase()})} placeholder="e.g. IM-2026-001" />
+                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} placeholder="e.g. IM-2026-001" />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Curriculum</label>
-                                                <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.curriculum_id} onChange={(e) => setFormData({...formData, curriculum_id: e.target.value})}>
+                                                <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.curriculum_id} onChange={(e) => setFormData({ ...formData, curriculum_id: e.target.value })}>
                                                     <option value="1">CBC</option>
                                                     <option value="2">8-4-4</option>
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
-                                                <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.academic_level_id} onChange={(e) => setFormData({...formData, academic_level_id: e.target.value})}>
+                                                <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.academic_level_id} onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })}>
                                                     <option value="1">Grade 10</option>
                                                     <option value="2">Form 3</option>
                                                 </select>
@@ -340,11 +436,11 @@ export default function UserManagement() {
                                     <>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                            <input type="email" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@inkiito.edu" />
+                                            <input type="email" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="staff@inkiito.edu" />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
-                                            <input type="text" required minLength="6" className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} placeholder="Min. 6 characters" />
+                                            <input type="text" required minLength="6" className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min. 6 characters" />
                                         </div>
                                     </>
                                 )}
@@ -352,6 +448,139 @@ export default function UserManagement() {
                             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
                                 <Button type="button" variant="secondary" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
                                 <Button type="submit" variant="primary" isLoading={isSubmitting}>Create User</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* === EDIT USER MODAL === */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="text-lg font-bold text-gray-900 italic">Edit User Profile</h3>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleUpdateUser}>
+                            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                                {editError && <div className="p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100">{editError}</div>}
+
+                                <div>
+                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">User Role</label>
+                                    <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-medium" value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}>
+                                        <optgroup label="Learners">
+                                            <option value="student">Student</option>
+                                        </optgroup>
+                                        <optgroup label="Staff">
+                                            <option value="teacher">Teacher</option>
+                                            <option value="class_teacher">Class Teacher</option>
+                                            <option value="dos">Director of Studies</option>
+                                            <option value="admin">System Admin</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Full Name</label>
+                                    <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                                </div>
+
+                                {formData.role === 'student' ? (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Admission Number</label>
+                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Access Key (Visible to Student)</label>
+                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase font-mono tracking-widest bg-gray-50 font-bold" value={formData.access_key} onChange={(e) => setFormData({ ...formData, access_key: e.target.value.toUpperCase() })} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Curriculum</label>
+                                                <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.curriculum_id} onChange={(e) => setFormData({ ...formData, curriculum_id: e.target.value })}>
+                                                    <option value="1">CBC</option>
+                                                    <option value="2">8-4-4</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Level</label>
+                                                <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.academic_level_id} onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })}>
+                                                    <option value="1">Grade 10</option>
+                                                    <option value="2">Form 3</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Email Address</label>
+                                            <input type="email" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">New Password (Leave blank to keep current)</label>
+                                            <input type="password" minLength="6" className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                                <Button type="button" variant="secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                                <Button type="submit" variant="primary" isLoading={isUpdating}>Save Update</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* === IMPORT CSV MODAL === */}
+            {isImportModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="text-lg font-bold text-gray-900 uppercase italic tracking-tighter">Bulk User Import</h3>
+                            <button onClick={() => setIsImportModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleImportCSV}>
+                            <div className="p-6 space-y-4">
+                                {importError && <div className="p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100">{importError}</div>}
+
+                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-xs text-blue-700 space-y-2">
+                                    <p className="font-bold">CSV Required Columns:</p>
+                                    <p>Students: <code className="bg-white px-1 font-mono">name, admission_number, curriculum_id, academic_level_id</code></p>
+                                    <p>Staff: <code className="bg-white px-1 font-mono">name, email, password</code></p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Import Type</label>
+                                    <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-medium" value={importRole} onChange={(e) => setImportRole(e.target.value)}>
+                                        <option value="student">Students</option>
+                                        <option value="teacher">Teachers / Staff</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Select CSV File</label>
+                                    <input
+                                        type="file"
+                                        accept=".csv"
+                                        required
+                                        className="w-full p-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                                        onChange={(e) => setImportFile(e.target.files[0])}
+                                    />
+                                </div>
+                            </div>
+                            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                                <Button type="button" variant="secondary" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
+                                <Button type="submit" variant="primary" isLoading={isImporting}>Start Import</Button>
                             </div>
                         </form>
                     </div>
@@ -371,9 +600,9 @@ export default function UserManagement() {
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        
+
                         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                            
+
                             {/* Render Existing Enrollments */}
                             <div className="space-y-2">
                                 {editingEnrollments.length > 0 ? (
@@ -386,7 +615,7 @@ export default function UserManagement() {
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <select 
+                                                <select
                                                     className="text-sm border border-gray-300 rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                                     value={env.status}
                                                     onChange={(e) => handleStatusChange(env.subject_id, e.target.value)}
@@ -411,7 +640,7 @@ export default function UserManagement() {
                             {/* Add New Subject Dropdown */}
                             {availableToAdd.length > 0 && (
                                 <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-                                    <select 
+                                    <select
                                         className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                         value={subjectToAdd}
                                         onChange={(e) => setSubjectToAdd(e.target.value)}
@@ -435,7 +664,7 @@ export default function UserManagement() {
                     </div>
                 </div>
             )}
-            
+
         </div>
     );
 }
