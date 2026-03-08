@@ -13,14 +13,23 @@ class SettingController extends Controller
      */
     public function index()
     {
-        $settings = Setting::all()->pluck('value', 'key');
-        
-        // Provide some defaults if empty
-        if (!isset($settings['school_name'])) {
-            $settings['school_name'] = 'Inkiito Manoh Academy';
+        try {
+            $settings = Setting::all()->pluck('value', 'key');
+            
+            // Provide some defaults if empty
+            if (!isset($settings['school_name'])) {
+                $settings['school_name'] = 'Inkiito Manoh Academy';
+            }
+            
+            return response()->json($settings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'school_name' => 'Inkiito Manoh Academy',
+                'brand_primary' => '#d81d22',
+                'brand_secondary' => '#4b4da3',
+                'brand_accent' => '#f8af18'
+            ]);
         }
-        
-        return response()->json($settings);
     }
 
     /**
@@ -28,13 +37,20 @@ class SettingController extends Controller
      */
     public function update(Request $request)
     {
-        // Request should be a dictionary: ['school_name' => '...', 'contact_email' => '...']
-        $data = $request->all();
+        $data = $request->except(['school_logo']);
         
         foreach ($data as $key => $value) {
             Setting::updateOrCreate(
                 ['key' => $key],
                 ['value' => $value]
+            );
+        }
+
+        if ($request->hasFile('school_logo')) {
+            $path = $request->file('school_logo')->store('config', 'public');
+            Setting::updateOrCreate(
+                ['key' => 'school_logo'],
+                ['value' => url('/storage/' . $path)]
             );
         }
 

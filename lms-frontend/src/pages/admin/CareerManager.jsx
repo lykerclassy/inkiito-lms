@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import api from '../../services/api';
+import { useNotification } from '../../contexts/NotificationContext';
 
 export default function CareerManager() {
     const [pathways, setPathways] = useState([]);
     const [careers, setCareers] = useState([]);
     const [subjects, setSubjects] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { showNotification, askConfirmation } = useNotification();
     const [activeTab, setActiveTab] = useState('careers'); // 'careers' | 'pathways'
 
     const [isEditing, setIsEditing] = useState(null); // ID or 'new'
@@ -64,8 +66,9 @@ export default function CareerManager() {
             }
             setIsEditing(null);
             fetchData();
+            showNotification("Career updated successfully.", "success");
         } catch (err) {
-            alert("Save failed");
+            showNotification("Save failed", "error");
         }
     };
 
@@ -79,28 +82,33 @@ export default function CareerManager() {
             }
             setIsEditingPathway(null);
             fetchData();
+            showNotification("Pathway updated.", "success");
         } catch (err) {
-            alert("Save failed");
+            showNotification("Save failed", "error");
         }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Delete this career?")) return;
+        const confirmed = await askConfirmation("Delete this career?", "Confirm Action");
+        if (!confirmed) return;
         try {
             await api.delete(`/careers/${id}`);
             fetchData();
+            showNotification("Career deleted.", "success");
         } catch (err) {
-            alert("Delete failed");
+            showNotification("Delete failed", "error");
         }
     };
 
     const handleDeletePathway = async (id) => {
-        if (!window.confirm("Delete this pathway? This will fail if it has careers attached.")) return;
+        const confirmed = await askConfirmation("Delete this pathway? This will fail if it has careers attached.", "Delete Pathway?");
+        if (!confirmed) return;
         try {
             await api.delete(`/pathways/${id}`);
             fetchData();
+            showNotification("Pathway removed.", "success");
         } catch (err) {
-            alert(err.response?.data?.message || "Delete failed");
+            showNotification(err.response?.data?.message || "Delete failed", "error");
         }
     };
 
@@ -170,48 +178,63 @@ export default function CareerManager() {
         });
     };
 
-    if (isLoading) return <div className="p-20 text-center font-black text-gray-400">Loading Career Repository...</div>;
+    if (isLoading) return <div className="p-6 text-center font-semibold text-gray-400">Loading Career Repository...</div>;
 
     return (
-        <div className="space-y-8 pb-20">
-            <header className="flex justify-between items-center bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900">Career & Pathway Governance</h1>
-                    <p className="text-gray-500 font-bold uppercase text-[10px] tracking-widest mt-1">Map subjects to future career qualifications</p>
+        <div className="space-y-4 pb-20">
+            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 gap-6">
+                <div className="w-full lg:w-auto">
+                    <h1 className="text-xl font-black text-gray-900 tracking-tight">Career & Pathway Governance</h1>
+                    <p className="text-gray-500 font-bold uppercase text-[10px] mt-1 tracking-wider opacity-70">Map subjects to future career qualifications</p>
                 </div>
-                {!isEditing && !isEditingPathway && (
-                    <div className="flex bg-gray-100 p-1 rounded-2xl">
-                        <button
-                            onClick={() => setActiveTab('careers')}
-                            className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${activeTab === 'careers' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                        >
-                            Careers
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('pathways')}
-                            className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${activeTab === 'pathways' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                        >
-                            Pathways
-                        </button>
-                    </div>
-                )}
 
-                {!isEditing && !isEditingPathway && (
-                    <Button onClick={() => activeTab === 'careers' ? openEdit(null) : openEditPathway(null)}>
-                        + Launch New {activeTab === 'careers' ? 'Career' : 'Pathway'}
-                    </Button>
-                )}
-                {(isEditing || isEditingPathway) && (
-                    <Button variant="outline" onClick={() => { setIsEditing(null); setIsEditingPathway(null); }}>Cancel Edit</Button>
-                )}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto">
+                    {!isEditing && !isEditingPathway && (
+                        <div className="flex bg-gray-100/80 p-1 rounded-xl sm:rounded-2xl shrink-0">
+                            <button
+                                onClick={() => setActiveTab('careers')}
+                                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase transition-all ${activeTab === 'careers' ? 'bg-white text-school-primary shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                Careers
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('pathways')}
+                                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase transition-all ${activeTab === 'pathways' ? 'bg-white text-school-primary shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                Pathways
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        {!isEditing && !isEditingPathway && (
+                            <Button
+                                className="w-full sm:w-auto py-3.5 sm:py-2 px-6 text-[10px] font-black uppercase tracking-widest bg-school-primary shadow-lg shadow-red-100"
+                                onClick={() => activeTab === 'careers' ? openEdit(null) : openEditPathway(null)}
+                            >
+                                <span className="sm:hidden">+ New {activeTab === 'careers' ? 'Career' : 'Pathway'}</span>
+                                <span className="hidden sm:inline">+ Launch New {activeTab === 'careers' ? 'Career' : 'Pathway'}</span>
+                            </Button>
+                        )}
+                        {(isEditing || isEditingPathway) && (
+                            <Button
+                                variant="outline"
+                                className="w-full sm:w-auto py-3.5 sm:py-2 px-6 text-[10px] font-black uppercase tracking-widest border-2 border-gray-200"
+                                onClick={() => { setIsEditing(null); setIsEditingPathway(null); }}
+                            >
+                                Cancel Edit
+                            </Button>
+                        )}
+                    </div>
+                </div>
             </header>
 
             {activeTab === 'careers' && isEditing ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in zoom-in-95">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in fade-in zoom-in-95">
                     <Card title="Career Definition">
                         <form onSubmit={handleSave} className="space-y-6">
                             <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Career Title</label>
+                                <label className="text-xs font-semibold text-gray-400">Career Title</label>
                                 <input
                                     required
                                     className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
@@ -222,7 +245,7 @@ export default function CareerManager() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Pathway</label>
+                                    <label className="text-xs font-semibold text-gray-400">Pathway</label>
                                     <select
                                         className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
                                         value={formData.pathway_id}
@@ -232,7 +255,7 @@ export default function CareerManager() {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Outlook</label>
+                                    <label className="text-xs font-semibold text-gray-400">Outlook</label>
                                     <select
                                         className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
                                         value={formData.outlook}
@@ -247,7 +270,7 @@ export default function CareerManager() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Salary Range (e.g. KSh 100k - 200k)</label>
+                                <label className="text-xs font-semibold text-gray-400">Salary Range (e.g. KSh 100k - 200k)</label>
                                 <input
                                     className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
                                     value={formData.salary_range}
@@ -256,7 +279,7 @@ export default function CareerManager() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Job Description</label>
+                                <label className="text-xs font-semibold text-gray-400">Job Description</label>
                                 <textarea
                                     className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-24"
                                     value={formData.description}
@@ -265,7 +288,7 @@ export default function CareerManager() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Minimum Qualifications</label>
+                                <label className="text-xs font-semibold text-gray-400">Minimum Qualifications</label>
                                 <textarea
                                     className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-24"
                                     placeholder="Degree in Computer Science, etc."
@@ -275,7 +298,7 @@ export default function CareerManager() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Core Skills</label>
+                                <label className="text-xs font-semibold text-gray-400">Core Skills</label>
                                 <textarea
                                     className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-24"
                                     placeholder="Problem Solving, Coding, Teamwork..."
@@ -285,7 +308,7 @@ export default function CareerManager() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Typical Employers</label>
+                                <label className="text-xs font-semibold text-gray-400">Typical Employers</label>
                                 <input
                                     className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
                                     placeholder="Tech Companies, Banks, Government..."
@@ -294,7 +317,7 @@ export default function CareerManager() {
                                 />
                             </div>
 
-                            <Button type="submit" className="w-full py-5 text-sm uppercase tracking-[0.2em] shadow-xl">Commit Career Map</Button>
+                            <Button type="submit" className="w-full py-5 text-sm uppercase shadow-sm">Commit Career Map</Button>
                         </form>
                     </Card>
 
@@ -319,13 +342,13 @@ export default function CareerManager() {
                                                 <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
                                                     <button
                                                         onClick={() => setMandatory(s.id, true)}
-                                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${mapping.is_mandatory ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+                                                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${mapping.is_mandatory ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
                                                     >
                                                         Mandatory
                                                     </button>
                                                     <button
                                                         onClick={() => setMandatory(s.id, false)}
-                                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${!mapping.is_mandatory ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+                                                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!mapping.is_mandatory ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
                                                     >
                                                         Optional
                                                     </button>
@@ -343,7 +366,7 @@ export default function CareerManager() {
                     {careers.map(career => (
                         <Card key={career.id} className="group hover:border-indigo-100 transition-all cursor-default">
                             <div className="flex justify-between items-start mb-6">
-                                <span className={`px-3 py-1 bg-${career.pathway.color_code}-50 text-${career.pathway.color_code}-600 rounded-full text-[10px] font-black uppercase tracking-widest`}>
+                                <span className={`px-3 py-1 bg-${career.pathway.color_code}-50 text-${career.pathway.color_code}-600 rounded-full text-xs font-semibold`}>
                                     {career.pathway.name}
                                 </span>
                                 <div className="flex gap-2">
@@ -355,11 +378,11 @@ export default function CareerManager() {
                                     </button>
                                 </div>
                             </div>
-                            <h3 className="text-xl font-black text-gray-900 mb-2">{career.name}</h3>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-2">{career.name}</h3>
                             <div className="space-y-4">
                                 <div className="flex flex-wrap gap-1.5">
                                     {career.subjects.map(s => (
-                                        <span key={s.id} className={`text-[8px] font-black px-2 py-1 rounded-md border ${s.pivot.is_mandatory ? 'border-red-100 text-red-600 bg-red-50' : 'border-emerald-100 text-emerald-600 bg-emerald-50'}`}>
+                                        <span key={s.id} className={`text-[8px] font-semibold px-2 py-1 rounded-md border ${s.pivot.is_mandatory ? 'border-red-100 text-red-600 bg-red-50' : 'border-emerald-100 text-emerald-600 bg-emerald-50'}`}>
                                             {s.name}
                                         </span>
                                     ))}
@@ -376,7 +399,7 @@ export default function CareerManager() {
                         <Card title={isEditingPathway === 'new' ? "New Pathway" : "Edit Pathway"}>
                             <form onSubmit={handleSavePathway} className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Pathway Name</label>
+                                    <label className="text-xs font-semibold text-gray-400">Pathway Name</label>
                                     <input
                                         required
                                         className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
@@ -385,7 +408,7 @@ export default function CareerManager() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Color Code (Tailwind brand color)</label>
+                                    <label className="text-xs font-semibold text-gray-400">Color Code (Tailwind brand color)</label>
                                     <select
                                         className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
                                         value={pathwayForm.color_code}
@@ -400,14 +423,14 @@ export default function CareerManager() {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Description</label>
+                                    <label className="text-xs font-semibold text-gray-400">Description</label>
                                     <textarea
                                         className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-32"
                                         value={pathwayForm.description}
                                         onChange={(e) => setPathwayForm({ ...pathwayForm, description: e.target.value })}
                                     />
                                 </div>
-                                <Button type="submit" className="w-full py-4 shadow-lg shadow-indigo-100 uppercase tracking-widest text-xs">Save Pathway</Button>
+                                <Button type="submit" className="w-full py-4 shadow-lg shadow-indigo-100 text-xs">Save Pathway</Button>
                             </form>
                         </Card>
                     </div>
@@ -416,7 +439,7 @@ export default function CareerManager() {
                         {pathways.map(p => (
                             <Card key={p.id} className={`border-l-8 border-${p.color_code}-500 hover:shadow-md transition-shadow`}>
                                 <div className="flex justify-between items-start mb-4">
-                                    <h3 className="text-xl font-black text-gray-900 italic uppercase">{p.name}</h3>
+                                    <h3 className="text-sm font-semibold text-gray-900">{p.name}</h3>
                                     <div className="flex gap-2">
                                         <button onClick={() => openEditPathway(p)} className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
@@ -429,7 +452,7 @@ export default function CareerManager() {
                                 <p className="text-xs text-gray-500 font-medium line-clamp-3 mb-4">{p.description}</p>
                                 <div className="flex items-center gap-2">
                                     <div className={`w-3 h-3 rounded-full bg-${p.color_code}-500`} />
-                                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+                                    <span className="text-xs font-semibold uppercase text-gray-400">
                                         {careers.filter(c => c.pathway_id === p.id).length} Careers Linked
                                     </span>
                                 </div>

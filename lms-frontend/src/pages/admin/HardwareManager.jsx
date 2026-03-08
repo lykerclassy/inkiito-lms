@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import api from '../../services/api';
+import { useNotification } from '../../contexts/NotificationContext';
 
 export default function HardwareManager() {
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { showNotification, askConfirmation } = useNotification();
     const [isEditing, setIsEditing] = useState(null); // ID of item being edited or 'new'
     const [formData, setFormData] = useState({ name: '', description: '', image_url: '', category: 'Hardware', is_active: true });
 
@@ -35,18 +37,22 @@ export default function HardwareManager() {
             }
             setIsEditing(null);
             fetchItems();
+            showNotification("Hardware item saved.", "success");
         } catch (err) {
             console.error("Save failed", err);
+            showNotification("Failed to save hardware", "error");
         }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this hardware item?")) return;
+        const confirmed = await askConfirmation("Are you sure you want to delete this hardware item?", "Delete Asset?");
+        if (!confirmed) return;
         try {
             await api.delete(`/hardware-items/${id}`);
             fetchItems();
+            showNotification("Item removed.", "success");
         } catch (err) {
-            console.error("Delete failed", err);
+            showNotification("Delete failed", "error");
         }
     };
 
@@ -62,13 +68,13 @@ export default function HardwareManager() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-gray-900">Lab Hardware Manager</h1>
+                    <h1 className="text-base font-bold text-gray-900">Lab Hardware Manager</h1>
                     <p className="text-gray-500">Add or edit equipment for the ICT Innovation Lab.</p>
                 </div>
                 {!isEditing && (
-                    <Button onClick={() => openEdit(null)} className="flex items-center gap-2">
+                    <Button onClick={() => openEdit(null)} className="flex items-center gap-2 w-full sm:w-auto justify-center">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
                         Add New Hardware
                     </Button>
@@ -80,7 +86,7 @@ export default function HardwareManager() {
                     <form onSubmit={handleSave} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Name</label>
+                                <label className="text-sm font-bold text-gray-700 uppercase ">Name</label>
                                 <input
                                     type="text"
                                     required
@@ -90,7 +96,7 @@ export default function HardwareManager() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Category</label>
+                                <label className="text-sm font-bold text-gray-700 uppercase ">Category</label>
                                 <input
                                     type="text"
                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
@@ -99,7 +105,7 @@ export default function HardwareManager() {
                                 />
                             </div>
                             <div className="md:col-span-2 space-y-2">
-                                <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Image URL</label>
+                                <label className="text-sm font-bold text-gray-700 uppercase ">Image URL</label>
                                 <input
                                     type="url"
                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
@@ -114,12 +120,12 @@ export default function HardwareManager() {
                                     {formData.image_url ? (
                                         <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="flex items-center justify-center h-full text-gray-400 italic">No Image</div>
+                                        <div className="flex items-center justify-center h-full text-gray-400">No Image</div>
                                     )}
                                 </div>
                             </div>
                             <div className="md:col-span-2 space-y-2">
-                                <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Description</label>
+                                <label className="text-sm font-bold text-gray-700 uppercase ">Description</label>
                                 <textarea
                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-32"
                                     value={formData.description}
@@ -139,7 +145,7 @@ export default function HardwareManager() {
                         </div>
 
                         <div className="flex gap-4 pt-6 border-t border-gray-100">
-                            <Button type="submit" variant="primary" className="px-8">Save Hardware</Button>
+                            <Button type="submit" variant="primary" className="px-5">Save Hardware</Button>
                             <Button type="button" variant="outline" onClick={() => setIsEditing(null)}>Cancel</Button>
                         </div>
                     </form>
@@ -153,13 +159,13 @@ export default function HardwareManager() {
                             <div className="h-40 bg-gray-100 overflow-hidden">
                                 <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                 {!item.is_active && (
-                                    <div className="absolute top-2 left-2 bg-gray-900/80 text-white text-[10px] px-2 py-1 rounded-md uppercase font-black">Hidden</div>
+                                    <div className="absolute top-2 left-2 bg-gray-900/80 text-white text-[10px] px-2 py-1 rounded-md uppercase font-semibold">Hidden</div>
                                 )}
                             </div>
                             <div className="p-6">
                                 <div className="mb-4">
-                                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{item.category}</span>
-                                    <h3 className="text-xl font-black text-gray-900">{item.name}</h3>
+                                    <span className="text-xs font-semibold text-blue-500">{item.category}</span>
+                                    <h3 className="text-sm font-semibold text-gray-900">{item.name}</h3>
                                     <p className="text-xs text-gray-500 line-clamp-2 mt-1">{item.description}</p>
                                 </div>
                                 <div className="flex gap-2 border-t border-gray-50 pt-4 mt-auto">

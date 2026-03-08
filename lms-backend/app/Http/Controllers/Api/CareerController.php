@@ -67,6 +67,7 @@ class CareerController extends Controller
     {
         $validated = $request->validate([
             'pathway_id' => 'required|exists:pathways,id',
+            'track' => 'nullable|string',
             'name' => 'required|string',
             'description' => 'required|string',
             'salary_range' => 'nullable|string',
@@ -79,6 +80,7 @@ class CareerController extends Controller
 
         $career = Career::create([
             'pathway_id' => $validated['pathway_id'],
+            'track' => $validated['track'] ?? null,
             'name' => $validated['name'],
             'slug' => Str::slug($validated['name']),
             'description' => $validated['description'],
@@ -103,6 +105,7 @@ class CareerController extends Controller
         $career = Career::findOrFail($id);
         $validated = $request->validate([
             'pathway_id' => 'required|exists:pathways,id',
+            'track' => 'nullable|string',
             'name' => 'required|string',
             'description' => 'required|string',
             'salary_range' => 'nullable|string',
@@ -115,6 +118,7 @@ class CareerController extends Controller
 
         $career->update([
             'pathway_id' => $validated['pathway_id'],
+            'track' => $validated['track'] ?? null,
             'name' => $validated['name'],
             'slug' => Str::slug($validated['name']),
             'description' => $validated['description'],

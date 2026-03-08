@@ -124,11 +124,10 @@ class DatabaseSeeder extends Seeder
                 'correct_answer' => 'Napier\'s Bones'
             ]
         ]);
-    }
-}
-
-// 9. Enroll the Test Student in Computer Studies with an 'active' (Red Tick) status
+        // 9. Enroll the Test Student in Computer Studies with an 'active' (Red Tick) status
         $testStudent = User::where('admission_number', 'IM-2026-001')->first();
         if ($testStudent) {
             $testStudent->subjects()->attach($computerStudies->id, ['status' => 'active']);
         }
+    }
+}

@@ -13,8 +13,12 @@
     "@monaco-editor/react": "^4.7.0",
     "axios": "^1.13.6",
     "canvas-confetti": "^1.9.4",
+    "html2pdf.js": "^0.14.0",
+    "katex": "^0.16.37",
+    "nprogress": "^0.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-katex": "^3.1.0",
     "react-quill": "^2.0.0",
     "react-router-dom": "^7.13.1"
   },
@@ -28,6 +32,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
     "tailwindcss": "^4.2.1",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }

@@ -12,16 +12,16 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        // We now ask for 'identifier' and 'security_key' instead of email/password
+        // Validation: Ensure both identifier and security_key are provided
         $request->validate([
             'identifier' => 'required',
             'security_key' => 'required',
         ]);
 
-        $identifier = $request->identifier;
-        $securityKey = $request->security_key;
+        $identifier = trim($request->identifier);
+        $securityKey = trim($request->security_key);
 
-        // SCENARIO 1: Is it a Student using an Admission Number?
+        // 1. STUDENT LOGIN: Must use Admission Number and Access Key
         $student = User::where('role', 'student')
                        ->where('admission_number', $identifier)
                        ->where('access_key', $securityKey)
@@ -33,8 +33,8 @@ class AuthController extends Controller
             return response()->json(['user' => $student, 'token' => $token]);
         }
 
-        // SCENARIO 2: Is it a Teacher/Admin using an Email address?
-        $staff = User::whereIn('role', ['admin', 'teacher'])
+        // 2. STAFF/ADMIN/DEVELOPER LOGIN: Must use Email and Password
+        $staff = User::where('role', '!=', 'student')
                      ->where('email', $identifier)
                      ->first();
 
@@ -43,7 +43,7 @@ class AuthController extends Controller
             return response()->json(['user' => $staff, 'token' => $token]);
         }
 
-        // If neither scenario passes, reject the login
+        // If no match is found, throw a validation error
         throw ValidationException::withMessages([
             'identifier' => ['The provided credentials do not match our records.'],
         ]);

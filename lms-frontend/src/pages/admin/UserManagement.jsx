@@ -3,10 +3,12 @@ import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import EnrollmentIndicator from '../../components/common/EnrollmentIndicator';
+import { useNotification } from '../../contexts/NotificationContext';
 
 export default function UserManagement() {
     const [activeTab, setActiveTab] = useState('students');
     const [searchQuery, setSearchQuery] = useState('');
+    const { showNotification, askConfirmation } = useNotification();
 
     // Database State
     const [users, setUsers] = useState([]);
@@ -119,10 +121,10 @@ export default function UserManagement() {
             // Refresh background data to show updated ticks
             await fetchData();
             setSelectedStudent(null);
-            alert("Enrollments successfully updated!");
+            showNotification("Enrollments successfully updated!", "success");
         } catch (err) {
             console.error(err);
-            alert("Failed to save enrollments.");
+            showNotification("Failed to save enrollments.", "error");
         } finally {
             setIsSavingEnrollments(false);
         }
@@ -143,9 +145,9 @@ export default function UserManagement() {
 
             if (formData.role === 'student') {
                 const newStudent = response.data.user;
-                alert(`SUCCESS! Student Created.\n\nName: ${newStudent.name}\nAdmission Number: ${newStudent.admission_number}\nACCESS KEY: ${newStudent.access_key || 'N/A'}\n\nPlease copy this Access Key for the student.`);
+                showNotification(`SUCCESS! Student Created.\n\nName: ${newStudent.name}\nAdmission Number: ${newStudent.admission_number}\nACCESS KEY: ${newStudent.access_key || 'N/A'}\n\nPlease copy this Access Key for the student.`, "success", "Student Onboarded");
             } else {
-                alert(`SUCCESS! Staff member created successfully.`);
+                showNotification(`SUCCESS! Staff member created successfully.`, "success");
             }
         } catch (err) {
             setAddError(err.response?.data?.message || 'Failed to create user. Ensure emails or admission numbers are unique.');
@@ -163,7 +165,7 @@ export default function UserManagement() {
             await api.put(`/users/${editingUser.id}`, formData);
             await fetchData();
             setIsEditModalOpen(false);
-            alert("User updated successfully!");
+            showNotification("User updated successfully!", "success");
         } catch (err) {
             setEditError(err.response?.data?.message || 'Failed to update user.');
         } finally {
@@ -172,14 +174,15 @@ export default function UserManagement() {
     };
 
     const handleDeleteUser = async (userId) => {
-        if (!window.confirm("ARE YOU SURE? This will permanently delete this user and all their records (grades, etc). This cannot be undone.")) return;
+        const confirmed = await askConfirmation("This will permanently delete this user and all their records (grades, etc). This cannot be undone.", "Delete Account?");
+        if (!confirmed) return;
 
         try {
             await api.delete(`/users/${userId}`);
             await fetchData();
-            alert("User deleted successfully.");
+            showNotification("User deleted successfully.", "success");
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to delete user.");
+            showNotification(err.response?.data?.message || "Failed to delete user.", "error");
         }
     };
 
@@ -201,7 +204,7 @@ export default function UserManagement() {
             await fetchData();
             setIsImportModalOpen(false);
             setImportFile(null);
-            alert(res.data.message);
+            showNotification(res.data.message, "success", "Import Complete");
         } catch (err) {
             setImportError(err.response?.data?.message || 'Import failed. Check CSV format.');
         } finally {
@@ -256,15 +259,15 @@ export default function UserManagement() {
         !editingEnrollments.some(env => env.subject_id === sub.id)
     );
 
-    if (isLoading) return <div className="p-8 text-gray-500 font-medium">Loading user database...</div>;
-    if (error) return <div className="p-8 text-red-500 font-medium">{error}</div>;
+    if (isLoading) return <div className="p-4 text-gray-500 font-medium">Loading user database...</div>;
+    if (error) return <div className="p-4 text-red-500 font-medium">{error}</div>;
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto relative">
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+                    <h1 className="text-lg font-bold text-gray-900">User Management</h1>
                     <p className="text-gray-500 mt-1">Manage staff access and student enrollments across frameworks.</p>
                 </div>
                 <div className="flex gap-3">
@@ -292,7 +295,7 @@ export default function UserManagement() {
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-600">
-                        <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 uppercase tracking-wider text-xs">
+                        <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 uppercase  text-xs">
                             <tr>
                                 {activeTab === 'students' ? (
                                     <>
@@ -313,7 +316,7 @@ export default function UserManagement() {
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredUsers.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-500 italic">No users found.</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-4 text-center text-gray-500">No users found.</td></tr>
                             ) : (
                                 filteredUsers.map((user) => (
                                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
@@ -321,10 +324,10 @@ export default function UserManagement() {
                                             <>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="font-semibold text-gray-900">{user.name}</div>
-                                                    <div className="text-gray-500 text-xs font-mono mt-0.5">{user.admission_number || 'N/A'}</div>
+                                                    <div className="text-gray-500 text-xs mt-0.5">{user.admission_number || 'N/A'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="font-mono bg-gray-100 text-gray-800 px-2 py-1 rounded border border-gray-200 text-xs tracking-widest font-bold">{user.access_key || '------'}</span>
+                                                    <span className="font-mono bg-gray-100 text-gray-800 px-2 py-1 rounded border border-gray-200 text-xs font-bold">{user.access_key || '------'}</span>
                                                 </td>
                                                 <td className="px-6 py-4 font-medium text-gray-800">{user.curriculum?.name || 'Unassigned'}</td>
                                                 <td className="px-6 py-4">{user.academic_level?.name || 'Unassigned'}</td>
@@ -336,7 +339,7 @@ export default function UserManagement() {
                                                     <div className="text-gray-500 text-xs mt-0.5">{user.email || 'No email provided'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${['admin', 'developer'].includes(user.role) ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase  ${['admin', 'developer'].includes(user.role) ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                                                         {formatRole(user.role)}
                                                     </span>
                                                 </td>
@@ -373,7 +376,7 @@ export default function UserManagement() {
             {/* === ADD NEW USER MODAL === */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-sm w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="text-lg font-bold text-gray-900">Add New User</h3>
                             <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -457,9 +460,9 @@ export default function UserManagement() {
             {/* === EDIT USER MODAL === */}
             {isEditModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-sm w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="text-lg font-bold text-gray-900 italic">Edit User Profile</h3>
+                            <h3 className="text-lg font-bold text-gray-900">Edit User Profile</h3>
                             <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
@@ -470,7 +473,7 @@ export default function UserManagement() {
                                 {editError && <div className="p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100">{editError}</div>}
 
                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">User Role</label>
+                                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">User Role</label>
                                     <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-medium" value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}>
                                         <optgroup label="Learners">
                                             <option value="student">Student</option>
@@ -485,30 +488,30 @@ export default function UserManagement() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Full Name</label>
+                                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Full Name</label>
                                     <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
 
                                 {formData.role === 'student' ? (
                                     <>
                                         <div>
-                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Admission Number</label>
+                                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Admission Number</label>
                                             <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Access Key (Visible to Student)</label>
-                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase font-mono tracking-widest bg-gray-50 font-bold" value={formData.access_key} onChange={(e) => setFormData({ ...formData, access_key: e.target.value.toUpperCase() })} />
+                                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Access Key (Visible to Student)</label>
+                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase bg-gray-50 font-bold" value={formData.access_key} onChange={(e) => setFormData({ ...formData, access_key: e.target.value.toUpperCase() })} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Curriculum</label>
+                                                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Curriculum</label>
                                                 <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.curriculum_id} onChange={(e) => setFormData({ ...formData, curriculum_id: e.target.value })}>
                                                     <option value="1">CBC</option>
                                                     <option value="2">8-4-4</option>
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Level</label>
+                                                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Level</label>
                                                 <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.academic_level_id} onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })}>
                                                     <option value="1">Grade 10</option>
                                                     <option value="2">Form 3</option>
@@ -519,11 +522,11 @@ export default function UserManagement() {
                                 ) : (
                                     <>
                                         <div>
-                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Email Address</label>
+                                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Email Address</label>
                                             <input type="email" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">New Password (Leave blank to keep current)</label>
+                                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">New Password (Leave blank to keep current)</label>
                                             <input type="password" minLength="6" className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
                                         </div>
                                     </>
@@ -541,9 +544,9 @@ export default function UserManagement() {
             {/* === IMPORT CSV MODAL === */}
             {isImportModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-sm w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="text-lg font-bold text-gray-900 uppercase italic tracking-tighter">Bulk User Import</h3>
+                            <h3 className="text-lg font-bold text-gray-900">Bulk User Import</h3>
                             <button onClick={() => setIsImportModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
@@ -555,12 +558,12 @@ export default function UserManagement() {
 
                                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-xs text-blue-700 space-y-2">
                                     <p className="font-bold">CSV Required Columns:</p>
-                                    <p>Students: <code className="bg-white px-1 font-mono">name, admission_number, curriculum_id, academic_level_id</code></p>
-                                    <p>Staff: <code className="bg-white px-1 font-mono">name, email, password</code></p>
+                                    <p>Students: <code className="bg-white px-1">name, admission_number, curriculum_id, academic_level_id</code></p>
+                                    <p>Staff: <code className="bg-white px-1">name, email, password</code></p>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Import Type</label>
+                                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Import Type</label>
                                     <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-medium" value={importRole} onChange={(e) => setImportRole(e.target.value)}>
                                         <option value="student">Students</option>
                                         <option value="teacher">Teachers / Staff</option>
@@ -568,7 +571,7 @@ export default function UserManagement() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5">Select CSV File</label>
+                                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Select CSV File</label>
                                     <input
                                         type="file"
                                         accept=".csv"
@@ -590,7 +593,7 @@ export default function UserManagement() {
             {/* === STUDENT ENROLLMENT MODAL === */}
             {selectedStudent && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-sm w-full max-w-lg overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900">Subject Enrollments</h3>
@@ -631,7 +634,7 @@ export default function UserManagement() {
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 text-center italic">
+                                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 text-center">
                                         No subjects assigned yet.
                                     </div>
                                 )}

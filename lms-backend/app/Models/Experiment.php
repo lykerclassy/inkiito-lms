@@ -9,7 +9,7 @@ class Experiment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['science_lab_id', 'curriculum_id', 'slug', 'title', 'level', 'duration', 'simulation_type', 'is_active'];
+    protected $fillable = ['science_lab_id', 'curriculum_id', 'slug', 'title', 'level', 'duration', 'simulation_type', 'youtube_url', 'requirements', 'observations', 'explanations', 'conclusion', 'knowledge_check', 'is_active'];
 
     public function scienceLab()
     {

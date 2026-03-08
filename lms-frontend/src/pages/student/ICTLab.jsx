@@ -95,10 +95,10 @@ export default function ICTLab() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-24">
+        <div className="max-w-6xl mx-auto space-y-4 pb-24">
             <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="space-y-1">
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tight">ICT Innovation Lab</h1>
+                    <h1 className="text-xl font-bold text-gray-900 tracking-tight italic uppercase">ICT Innovation Lab</h1>
                     <p className="text-gray-500 font-medium">Empowering the next generation of digital creators.</p>
                 </div>
                 {selectedModule && (
@@ -112,18 +112,18 @@ export default function ICTLab() {
             </header>
 
             {!selectedModule ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {ICT_MODULES.map((module) => (
                         <Card
                             key={module.id}
-                            className={`group cursor-pointer hover:scale-105 transition-all duration-300 border-b-8 border-b-${module.color}-500 shadow-xl overflow-hidden`}
+                            className={`group cursor-pointer hover:scale-105 transition-all duration-300 border-b-8 border-b-${module.color}-500 shadow-sm overflow-hidden`}
                             onClick={() => setSelectedModule(module)}
                         >
-                            <div className="p-8 space-y-4">
-                                <div className={`w-16 h-16 rounded-2xl bg-${module.color}-100 text-${module.color}-600 flex items-center justify-center group-hover:rotate-6 transition-transform`}>
+                            <div className="p-4 space-y-4">
+                                <div className={`w-9 h-9 rounded-2xl bg-${module.color}-100 text-${module.color}-600 flex items-center justify-center group-hover:rotate-6 transition-transform`}>
                                     {module.icon}
                                 </div>
-                                <h3 className="text-2xl font-black text-gray-900 leading-tight">{module.title}</h3>
+                                <h3 className="text-base font-bold text-gray-900 leading-tight">{module.title}</h3>
                                 <p className="text-gray-500 text-sm leading-relaxed">
                                     {module.description}
                                 </p>
@@ -137,19 +137,25 @@ export default function ICTLab() {
                 </div>
             ) : (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <Card className="overflow-hidden bg-white shadow-2xl border-none">
+                    <Card className="overflow-hidden bg-white shadow-sm border-none">
                         <div className={`h-2 bg-${selectedModule.color}-600`}></div>
-                        <div className="p-8 md:p-12">
-                            <h2 className="text-3xl font-black text-gray-900 mb-8 flex items-center gap-4">
+                        <div className="p-4 md:p-5">
+                            <h2 className="text-lg font-bold text-gray-900 mb-8 flex items-center gap-4">
                                 <span className={`p-3 bg-${selectedModule.color}-50 text-${selectedModule.color}-600 rounded-xl`}>{selectedModule.icon}</span>
                                 {selectedModule.title}
                             </h2>
 
                             {selectedModule.id === 'parts' && (
-                                <div className="space-y-12">
+                                <div className="space-y-5">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         {isLoading ? (
-                                            <div className="col-span-full py-10 text-center text-gray-400 font-bold">Scanning hardware inventory...</div>
+                                            <div className="col-span-full py-5 flex flex-col items-center justify-center">
+                                                <svg className="animate-spin h-8 w-8 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                <p className="text-gray-500 font-medium uppercase text-xs">Scanning hardware inventory...</p>
+                                            </div>
                                         ) : hardwareParts.map((part, i) => (
                                             <div key={i} className="group border border-gray-100 rounded-3xl overflow-hidden hover:shadow-lg transition-all bg-white relative">
                                                 <div className="h-48 overflow-hidden bg-gray-100 relative">
@@ -164,41 +170,41 @@ export default function ICTLab() {
                                                                 const utterance = new SpeechSynthesisUtterance(part.name + ". " + part.description);
                                                                 window.speechSynthesis.speak(utterance);
                                                             }}
-                                                            className="p-4 bg-white text-blue-600 rounded-full shadow-xl scale-0 group-hover:scale-100 transition-transform duration-300"
+                                                            className="p-4 bg-white text-blue-600 rounded-full shadow-sm scale-0 group-hover:scale-100 transition-transform duration-300"
                                                         >
                                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
                                                         </button>
                                                     </div>
                                                 </div>
                                                 <div className="p-6">
-                                                    <h4 className="text-xl font-black text-gray-900">{part.name}</h4>
+                                                    <h4 className="text-sm font-semibold text-gray-900">{part.name}</h4>
                                                     <p className="text-gray-500 text-sm mt-2 leading-relaxed">{part.description}</p>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
 
-                                    <div className="bg-blue-50/50 rounded-[3rem] p-8 md:p-12 border-2 border-blue-100 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                                    <div className="bg-blue-50/50 rounded-2xl p-4 md:p-5 border-2 border-blue-100 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-5 opacity-5 pointer-events-none">
                                             <svg className="w-64 h-64" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" /></svg>
                                         </div>
 
                                         {!idGame.active ? (
-                                            <div className="text-center py-10 space-y-6">
-                                                <h3 className="text-3xl font-black text-gray-900 tracking-tight">Challenge: Identify the Hardware</h3>
+                                            <div className="text-center py-3 space-y-6">
+                                                <h3 className="text-lg font-bold text-gray-900 tracking-tight">Challenge: Identify the Hardware</h3>
                                                 <p className="text-gray-500 max-w-md mx-auto">Ready to test your memory? We'll show you a picture, and you must tell us which part it is!</p>
-                                                <Button variant="primary" className="px-10 py-4 text-lg shadow-xl" onClick={startIdentificationGame}>
+                                                <Button variant="primary" className="px-4 py-4 text-lg shadow-sm" onClick={startIdentificationGame}>
                                                     Start Identification Challenge
                                                 </Button>
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
                                                 <div className="space-y-6">
                                                     <div className="flex justify-between items-center bg-white px-6 py-3 rounded-2xl shadow-sm border border-blue-100">
-                                                        <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Target Image</span>
-                                                        <span className="text-lg font-black text-blue-600">Score: {idGame.score}</span>
+                                                        <span className="text-xs font-semibold text-blue-400">Target Image</span>
+                                                        <span className="text-sm font-semibold text-blue-600">Score: {idGame.score}</span>
                                                     </div>
-                                                    <div className="aspect-video bg-white rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
+                                                    <div className="aspect-video bg-white rounded-xl overflow-hidden shadow-sm border-4 border-white">
                                                         <img
                                                             src={idGame.currentPart.image}
                                                             alt="Identity missing"
@@ -212,7 +218,7 @@ export default function ICTLab() {
                                                     )}
                                                 </div>
                                                 <div className="space-y-4">
-                                                    <h3 className="text-2xl font-black text-gray-900 mb-6">Which part is this?</h3>
+                                                    <h3 className="text-base font-bold text-gray-900 mb-6">Which part is this?</h3>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         {hardwareParts.map((p, i) => (
                                                             <button
@@ -239,26 +245,26 @@ export default function ICTLab() {
                             )}
 
                             {selectedModule.id === 'coding' && (
-                                <div className="space-y-12 py-10">
-                                    <div className="flex flex-col md:flex-row items-center gap-12">
+                                <div className="space-y-5 py-3">
+                                    <div className="flex flex-col md:flex-row items-center gap-5">
                                         <div className="flex-1 space-y-6">
-                                            <h3 className="text-4xl font-black text-gray-900 leading-tight">Think Like a Programmer</h3>
+                                            <h3 className="text-xl font-bold text-gray-900 leading-tight">Think Like a Programmer</h3>
                                             <p className="text-xl text-gray-600 leading-relaxed">Coding isn't just about typing—it's about logical sequences. Use blocks to tell the computer exactly what to do.</p>
 
                                             <div className="space-y-4">
                                                 <div className="p-4 bg-purple-50 rounded-2xl border-l-8 border-l-purple-600 flex items-center gap-4">
-                                                    <span className="text-2xl font-black text-purple-600">1</span>
+                                                    <span className="text-base font-bold text-purple-600">1</span>
                                                     <p className="font-bold text-purple-900">SEQUENCE: Putting steps in the right order.</p>
                                                 </div>
                                                 <div className="p-4 bg-purple-50 rounded-2xl border-l-8 border-l-purple-600 flex items-center gap-4">
-                                                    <span className="text-2xl font-black text-purple-600">2</span>
+                                                    <span className="text-base font-bold text-purple-600">2</span>
                                                     <p className="font-bold text-purple-900">LOOPS: Repeating actions automatically.</p>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="w-full md:w-96 bg-gray-900 rounded-3xl p-8 shadow-2xl relative">
-                                            <div className="absolute -top-4 -right-4 bg-green-500 text-white px-4 py-2 rounded-full text-xs font-black animate-bounce">LIVE BLOCKS</div>
-                                            <div className="space-y-3 font-mono text-xs">
+                                        <div className="w-full md:w-96 bg-gray-900 rounded-3xl p-4 shadow-sm relative">
+                                            <div className="absolute -top-4 -right-4 bg-green-500 text-white px-4 py-2 rounded-full text-xs font-semibold animate-bounce">LIVE BLOCKS</div>
+                                            <div className="space-y-3 text-xs">
                                                 <div className="p-3 bg-blue-500 text-white rounded-xl shadow-lg translate-x-4">WHEN (Game Starts)</div>
                                                 <div className="p-3 bg-purple-500 text-white rounded-xl shadow-lg translate-x-8">REPEAT (10 times)</div>
                                                 <div className="p-3 bg-green-500 text-white rounded-xl shadow-lg translate-x-12">MOVE_FORWARD(10)</div>
@@ -271,12 +277,12 @@ export default function ICTLab() {
                             )}
 
                             {selectedModule.id === 'safety' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 py-6">
-                                    <div className="bg-green-50 rounded-3xl p-8 border border-green-100 flex flex-col items-center text-center space-y-4">
-                                        <div className="w-20 h-20 bg-green-600 text-white rounded-full flex items-center justify-center shadow-xl mb-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-6">
+                                    <div className="bg-green-50 rounded-3xl p-4 border border-green-100 flex flex-col items-center text-center space-y-4">
+                                        <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-sm mb-4">
                                             <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 013 11c0-5.523 4.477-10 10-10s10 4.477 10 10a10.003 10.003 0 01-6.73 9.397m-4 0L9 21m5 0l1-2" /></svg>
                                         </div>
-                                        <h3 className="text-2xl font-black text-green-900">The SMART Citizen</h3>
+                                        <h3 className="text-base font-bold text-green-900">The SMART Citizen</h3>
                                         <div className="space-y-3 text-left w-full">
                                             <p className="text-sm font-bold text-green-700">✅ S: Stay Safe - Don't share personal info.</p>
                                             <p className="text-sm font-bold text-green-700">✅ M: Meet up? - Never meet strangers alone.</p>
@@ -287,9 +293,9 @@ export default function ICTLab() {
                                     </div>
 
                                     <div className="space-y-6 flex flex-col justify-center">
-                                        <h3 className="text-3xl font-black text-gray-900">Be a Digital Hero</h3>
+                                        <h3 className="text-lg font-bold text-gray-900">Be a Digital Hero</h3>
                                         <p className="text-lg text-gray-600 leading-relaxed">In the ICT lab, we use technology to build, not to break. Respecting copyrights and being kind to others online (Netiquette) are our top priorities.</p>
-                                        <Button variant="outline" className="w-fit px-8 py-4 border-2 border-green-600 text-green-600">Download Safety Guide</Button>
+                                        <Button variant="outline" className="w-fit px-5 py-4 border-2 border-green-600 text-green-600">Download Safety Guide</Button>
                                     </div>
                                 </div>
                             )}
@@ -299,36 +305,36 @@ export default function ICTLab() {
                     <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-gray-50 p-4 rounded-2xl flex items-center gap-3">
                             <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-blue-600 font-black">1.1</div>
-                            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Introduction</span>
+                            <span className="text-xs font-bold text-gray-500">Introduction</span>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-2xl flex items-center gap-3 opacity-50 grayscale">
                             <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 font-black">1.2</div>
-                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Lab Hands-on</span>
+                            <span className="text-xs font-bold text-gray-400">Lab Hands-on</span>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-2xl flex items-center gap-3 opacity-50 grayscale">
                             <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 font-black">1.3</div>
-                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Digital Quiz</span>
+                            <span className="text-xs font-bold text-gray-400">Digital Quiz</span>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-2xl flex items-center gap-3 opacity-50 grayscale">
                             <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-400 font-black">🏆</div>
-                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Certificate</span>
+                            <span className="text-xs font-bold text-gray-400">Certificate</span>
                         </div>
                     </div>
                 </div>
             )}
 
-            <footer className="bg-blue-600 rounded-3xl p-10 text-white flex flex-col md:flex-row items-center justify-between shadow-2xl shadow-blue-200">
+            <footer className="bg-blue-600 rounded-3xl p-4 text-white flex flex-col md:flex-row items-center justify-between shadow-sm shadow-blue-200">
                 <div className="space-y-2 mb-6 md:mb-0">
-                    <h3 className="text-2xl font-black">Ready for Lab Practical?</h3>
+                    <h3 className="text-base font-bold">Ready for Lab Practical?</h3>
                     <p className="text-blue-100 font-medium">Head over to the physical lab to start your hands-on exercises.</p>
                 </div>
                 <div className="flex gap-4">
                     <div className="bg-white/20 backdrop-blur-md px-6 py-4 rounded-2xl text-center border border-white/30">
-                        <span className="block text-2xl font-black">12/15</span>
+                        <span className="block text-base font-bold">12/15</span>
                         <span className="text-[10px] uppercase font-bold text-blue-100">Lab Capacity</span>
                     </div>
                     <div className="bg-white/20 backdrop-blur-md px-6 py-4 rounded-2xl text-center border border-white/30">
-                        <span className="block text-2xl font-black text-green-300">OPEN</span>
+                        <span className="block text-base font-bold text-green-300">OPEN</span>
                         <span className="text-[10px] uppercase font-bold text-blue-100">Lab Status</span>
                     </div>
                 </div>

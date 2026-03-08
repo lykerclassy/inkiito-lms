@@ -1,9 +1,47 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
-import Card from '../../components/common/Card';
-import Button from '../../components/common/Button';
+import { DashboardSkeleton } from '../../components/common/Skeleton';
 import api from '../../services/api';
+
+function StatCard({ icon, value, label, trend, color }) {
+    return (
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex items-start gap-4">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
+                {icon}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-2xl font-bold text-gray-800 leading-none">{value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                {trend && (
+                    <span className="inline-block mt-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        {trend}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function QuickAction({ icon, label, description, onClick, color }) {
+    return (
+        <button
+            onClick={onClick}
+            className="flex items-center gap-3 p-3.5 bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all text-left w-full group"
+        >
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
+                {icon}
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">{label}</p>
+                {description && <p className="text-xs text-gray-400 truncate">{description}</p>}
+            </div>
+            <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-400 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </button>
+    );
+}
 
 export default function AdminDashboard() {
     const { user } = useContext(AuthContext);
@@ -13,164 +51,314 @@ export default function AdminDashboard() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Roles Check
-    const isManagement = ['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(user?.role);
-    const isTeacher = ['teacher', 'class_teacher'].includes(user?.role);
-    const isAdmin = ['admin', 'developer'].includes(user?.role);
+    const role = user?.role;
+    const isManagement = ['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(role);
+    const isSysAdmin = ['admin', 'developer'].includes(role);
+    const isTeacher = ['teacher', 'class_teacher'].includes(role);
+
+    const roleLabel = {
+        admin: 'System Administrator',
+        developer: 'Developer',
+        principal: 'Principal',
+        deputy_principal: 'Deputy Principal',
+        dos: 'Director of Studies',
+        teacher: 'Teacher',
+        class_teacher: 'Class Teacher',
+    }[role] || 'Staff';
+
+    const greeting = () => {
+        const h = new Date().getHours();
+        return h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening';
+    };
 
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            setIsLoading(true);
-            try {
-                const res = await api.get('/dashboard');
+        if (!user) return;
+        setIsLoading(true);
+        api.get('/dashboard')
+            .then(res => {
                 setStats(res.data.stats || []);
                 setItems(res.data.subjects || res.data.classes || []);
-            } catch (err) {
-                console.error("Dashboard Fetch Error:", err);
-                setError("Failed to load real-time system stats.");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (user) {
-            fetchDashboardData();
-        }
+            })
+            .catch(err => {
+                console.error('Dashboard Fetch Error:', err);
+                setError('Failed to load dashboard data.');
+            })
+            .finally(() => setIsLoading(false));
     }, [user]);
 
-    if (isLoading) {
-        return <div className="p-12 text-center text-gray-500 font-medium">Authenticating & loading system overview...</div>;
-    }
+    if (isLoading) return <DashboardSkeleton />;
+
+    const statColors = ['bg-school-primary', 'bg-school-secondary', 'bg-amber-500', 'bg-emerald-500', 'bg-sky-500', 'bg-purple-500'];
+
+    const statIcons = [
+        <svg key="s0" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" /></svg>,
+        <svg key="s1" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+        <svg key="s2" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253" /></svg>,
+        <svg key="s3" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /></svg>,
+        <svg key="s4" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10" /></svg>,
+        <svg key="s5" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>,
+    ];
+
+    const bannerGradient = isSysAdmin
+        ? 'linear-gradient(135deg, #1a1b4b 0%, #4b4da3 70%, #d81d22 100%)'
+        : 'linear-gradient(135deg, #d81d22 0%, #a01018 60%, #4b4da3 100%)';
 
     return (
-        <div className="space-y-6 max-w-6xl mx-auto">
+        <div className="space-y-6 animate-in fade-in duration-500">
 
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 italic">
-                        {isManagement ? 'System Overview' : 'Teacher Dashboard'}
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        {isManagement ? 'Manage curriculum, users, and school operations.' : 'Manage your classes, assignments, and student progress.'}
-                    </p>
+            {/* Header Banner */}
+            <div className="relative overflow-hidden rounded-2xl text-white" style={{ background: bannerGradient }}>
+                <div className="absolute top-0 right-0 w-72 h-72 opacity-10 pointer-events-none">
+                    <svg viewBox="0 0 200 200" fill="white">
+                        <circle cx="160" cy="40" r="100" />
+                        <circle cx="40" cy="160" r="70" />
+                    </svg>
                 </div>
-                <div className="flex gap-3">
-                    {isManagement && (
-                        <>
-                            <Button onClick={() => navigate('/admin/users')} variant="outline">
-                                Manage Users
-                            </Button>
-                            <Button onClick={() => navigate('/admin/curriculum')}>
-                                + Create Lesson
-                            </Button>
-                        </>
-                    )}
-                    {isTeacher && (
-                        <Button onClick={() => navigate('/admin/assignments')}>
-                            + New Assignment
-                        </Button>
-                    )}
+                <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <p className="text-white/60 text-xs font-medium mb-1">{greeting()}, {roleLabel} 👋</p>
+                        <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">{user?.name}</h1>
+                        <p className="text-white/70 text-sm mt-1">
+                            {isManagement ? 'Management Panel' : 'Faculty Panel'} · Inkiito Manoh Senior School
+                        </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                        {isManagement && (
+                            <>
+                                <button
+                                    onClick={() => navigate('/admin/users')}
+                                    className="px-4 py-2 bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-semibold rounded-lg transition-colors"
+                                >
+                                    Manage Users
+                                </button>
+                                <button
+                                    onClick={() => navigate('/admin/curriculum')}
+                                    className="px-4 py-2 bg-white text-school-primary hover:bg-red-50 text-xs font-semibold rounded-lg transition-colors"
+                                >
+                                    + New Lesson
+                                </button>
+                            </>
+                        )}
+                        {isTeacher && (
+                            <button
+                                onClick={() => navigate('/admin/assignments')}
+                                className="px-4 py-2 bg-white text-school-secondary hover:bg-indigo-50 text-xs font-semibold rounded-lg transition-colors"
+                            >
+                                + New Assignment
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
+            {/* Error */}
             {error && (
-                <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 mb-6 font-medium">
-                    {error} (Showing fallback data)
+                <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm flex items-center gap-2">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                    </svg>
+                    {error}
                 </div>
             )}
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {stats.map((stat, index) => (
-                    <Card key={index} className="p-6 hover:shadow-lg transition-shadow border-none shadow-sm bg-white ring-1 ring-gray-100">
-                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3">{stat.label}</h3>
-                        <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-4xl font-black text-gray-900 tracking-tighter">{stat.value}</span>
-                        </div>
-                        <div className="mt-4 text-xs inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700 font-bold uppercase tracking-widest ring-1 ring-blue-100">
-                            {stat.trend}
-                        </div>
-                    </Card>
-                ))}
-            </div>
+            {/* Stats Grid */}
+            {stats.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {stats.map((stat, i) => (
+                        <StatCard
+                            key={i}
+                            icon={statIcons[i % statIcons.length]}
+                            value={stat.value}
+                            label={stat.label}
+                            trend={stat.trend}
+                            color={statColors[i % statColors.length]}
+                        />
+                    ))}
+                </div>
+            )}
 
-            {/* Dynamic Dashboard Widgets */}
-            <div className="grid grid-cols-1 gap-6">
-                {isManagement ? (
-                    <Card title="Curriculum Management Overview" className="border-none shadow-sm ring-1 ring-gray-100">
-                        <div className="space-y-3">
-                            {items.length > 0 ? items.map(subject => (
-                                <div
-                                    key={subject.id}
-                                    className="flex items-center justify-between p-5 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
-                                    onClick={() => navigate('/admin/curriculum')}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-inner">
-                                            {subject.title.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{subject.title}</h4>
-                                            <p className="text-xs text-gray-500 mt-0.5 font-bold uppercase tracking-widest">{subject.framework} • <span className="text-blue-600/70">{subject.studentCount}</span></p>
-                                        </div>
-                                    </div>
-                                    <span className="text-blue-600 font-black text-xs uppercase tracking-tighter flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        Manage <span className="text-lg leading-none">&rarr;</span>
-                                    </span>
-                                </div>
-                            )) : (
-                                <p className="text-center py-6 text-gray-500 italic">No subject data found in database.</p>
-                            )}
-                        </div>
-                    </Card>
-                ) : (
-                    <Card title="My Active Classes" className="border-none shadow-sm ring-1 ring-gray-100">
-                        <div className="space-y-4">
-                            {items.length > 0 ? items.map(course => (
-                                <div
-                                    key={course.id}
-                                    className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white border-l-4 border-l-blue-600 transition-all cursor-pointer group"
-                                    onClick={() => navigate('/admin/assignments')}
-                                >
-                                    <div>
-                                        <h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{course.title}</h4>
-                                        <p className="text-xs text-gray-500 mt-1 font-bold uppercase tracking-widest">{course.subtitle}</p>
-                                    </div>
-                                    <span className="text-blue-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
-                                        Open Portal <span className="text-base">&rarr;</span>
-                                    </span>
-                                </div>
-                            )) : (
-                                <p className="text-center py-6 text-gray-500 italic">No classes assigned to you.</p>
-                            )}
-                        </div>
-                    </Card>
-                )}
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {isAdmin && (
-                    <Card title="System Diagnostics" className="mt-6 border-none bg-purple-900 text-white rounded-[2rem] shadow-2xl overflow-hidden relative group">
-                        <div className="absolute top-0 right-0 p-8 transform translate-x-1/2 -translate-y-1/2 bg-white/10 w-64 h-64 rounded-full blur-3xl group-hover:scale-110 transition-transform"></div>
-                        <div className="flex flex-col sm:flex-row gap-6 relative z-10 p-4">
-                            <div className="flex-1">
-                                <h4 className="text-purple-300 text-xs font-black uppercase tracking-[0.3em] mb-2">Developer Operations</h4>
-                                <p className="text-purple-100/80 text-sm leading-relaxed max-w-md italic">
-                                    Full administrative telemetry engaged. You can manage global curriculum frameworks, monitor student enrollment velocity, and secure system-wide configurations.
-                                </p>
+                {/* Left — Subjects / Classes */}
+                <div className="lg:col-span-2 space-y-6">
+
+                    {/* Curriculum Subjects */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                            <h2 className="text-sm font-semibold text-gray-800">
+                                {isManagement ? 'Curriculum Subjects' : 'My Teaching Subjects'}
+                            </h2>
+                            <button
+                                onClick={() => navigate(isManagement ? '/admin/curriculum' : '/admin/assignments')}
+                                className="text-xs text-school-primary font-medium hover:underline"
+                            >
+                                View all
+                            </button>
+                        </div>
+
+                        {items.length > 0 ? (
+                            <div className="divide-y divide-gray-50">
+                                {items.slice(0, 6).map((item) => (
+                                    <div
+                                        key={item.id}
+                                        onClick={() => navigate(isManagement ? '/admin/curriculum' : '/admin/assignments')}
+                                        className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/60 cursor-pointer transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg bg-school-primary flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+                                            {(item.title || item.name || '?').charAt(0)}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-800 group-hover:text-school-primary transition-colors truncate">
+                                                {item.title || item.name}
+                                            </p>
+                                            <p className="text-xs text-gray-400 mt-0.5">
+                                                {item.framework || item.subtitle || item.studentCount || ''}
+                                            </p>
+                                        </div>
+                                        <svg className="w-4 h-4 text-gray-300 group-hover:text-school-primary transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="shrink-0 flex items-center">
-                                <Button
+                        ) : (
+                            <div className="px-5 py-12 text-center">
+                                <p className="text-sm text-gray-400">No subjects found.</p>
+                                {isManagement && (
+                                    <button
+                                        onClick={() => navigate('/admin/curriculum')}
+                                        className="mt-3 px-4 py-2 bg-school-primary text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors"
+                                    >
+                                        Add First Subject
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Assignments panel */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                            <h2 className="text-sm font-semibold text-gray-800">Assignments</h2>
+                            <button onClick={() => navigate('/admin/assignments')} className="text-xs text-school-primary font-medium hover:underline">
+                                View all
+                            </button>
+                        </div>
+                        <div className="px-5 py-10 text-center">
+                            <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <svg className="w-5 h-5 text-school-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                            </div>
+                            <p className="text-sm font-medium text-gray-500 mb-0.5">Manage Assignments</p>
+                            <p className="text-xs text-gray-400 mb-3">Create and review student assignments</p>
+                            <button
+                                onClick={() => navigate('/admin/assignments')}
+                                className="px-4 py-2 bg-school-secondary text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                                Go to Assignments
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Sidebar */}
+                <div className="space-y-6">
+
+                    {/* Quick Actions */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-gray-100">
+                            <h2 className="text-sm font-semibold text-gray-800">Quick Actions</h2>
+                        </div>
+                        <div className="p-3 space-y-1.5">
+                            {isManagement && (
+                                <>
+                                    <QuickAction
+                                        icon={<svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>}
+                                        label="Add User"
+                                        description="Create student or staff account"
+                                        onClick={() => navigate('/admin/users')}
+                                        color="bg-school-primary"
+                                    />
+                                    <QuickAction
+                                        icon={<svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" /></svg>}
+                                        label="Curriculum"
+                                        description="Manage subjects & lessons"
+                                        onClick={() => navigate('/admin/curriculum')}
+                                        color="bg-school-secondary"
+                                    />
+                                </>
+                            )}
+                            <QuickAction
+                                icon={<svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2m-6 9l2 2 4-4" /></svg>}
+                                label="Assignments"
+                                description="Create & grade work"
+                                onClick={() => navigate('/admin/assignments')}
+                                color="bg-amber-500"
+                            />
+                            <QuickAction
+                                icon={<svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+                                label="Gradebook"
+                                description="View student grades"
+                                onClick={() => navigate('/admin/grades')}
+                                color="bg-emerald-500"
+                            />
+                            {isSysAdmin && (
+                                <QuickAction
+                                    icon={<svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                                    label="Settings"
+                                    description="System configuration"
                                     onClick={() => navigate('/admin/settings')}
-                                    className="bg-white text-purple-900 hover:bg-purple-100 font-black uppercase tracking-widest text-[10px] px-6 py-3 rounded-full shadow-lg"
-                                >
-                                    System Settings
-                                </Button>
+                                    color="bg-gray-700"
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Staff Profile */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                                style={{ background: isSysAdmin ? '#1a1b4b' : '#d81d22' }}
+                            >
+                                {user?.name?.charAt(0) || 'A'}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">{user?.name}</p>
+                                <p className="text-xs text-gray-400 truncate">{roleLabel}</p>
                             </div>
                         </div>
-                    </Card>
-                )}
-            </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Email</span>
+                                <span className="text-xs font-medium text-gray-700 truncate max-w-[150px]">{user?.email}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Role</span>
+                                <span className="text-xs font-medium text-gray-700">{roleLabel}</span>
+                            </div>
+                        </div>
+                        {isSysAdmin && (
+                            <button
+                                onClick={() => navigate('/admin/settings')}
+                                className="w-full mt-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                                System Settings
+                            </button>
+                        )}
+                    </div>
 
+                    {/* Developer badge */}
+                    {role === 'developer' && (
+                        <div className="rounded-2xl p-4 border border-indigo-100 bg-indigo-50/50">
+                            <p className="text-xs font-semibold text-school-secondary mb-1">Developer Mode Active</p>
+                            <p className="text-xs text-indigo-700/70 leading-relaxed">Full system access — settings, seeding, and all configurations are available to you.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

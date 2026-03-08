@@ -1,5 +1,47 @@
 @import "tailwindcss";
 
+:root {
+    /* School Uniform Palette - Extracted from Inkiito Uniforms */
+    --school-primary: #d81d22;
+    /* The Cardigan Red */
+    --school-secondary: #4b4da3;
+    /* The Trouser Indigo */
+    --school-accent: #f8af18;
+    /* Warm Accent */
+    --school-bg: #fdfdfd;
+    --school-text: #1a1a1a;
+}
+
+@layer base {
+    body {
+        background-color: var(--school-bg);
+        color: var(--school-text);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+.bg-school-primary {
+    background-color: var(--school-primary);
+}
+
+.text-school-primary {
+    color: var(--school-primary);
+}
+
+.border-school-primary {
+    border-color: var(--school-primary);
+}
+
+.bg-school-secondary {
+    background-color: var(--school-secondary);
+}
+
+.text-school-secondary {
+    color: var(--school-secondary);
+}
+
 @media print {
 
     .no-print,
@@ -37,4 +79,31 @@
         max-width: none !important;
         margin: 0 !important;
     }
+}
+
+/* NProgress Professional Loading Bar */
+#nprogress {
+    pointer-events: none;
+}
+
+#nprogress .bar {
+    background: var(--school-primary);
+    position: fixed;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    box-shadow: 0 0 15px var(--school-primary);
+}
+
+#nprogress .peg {
+    display: block;
+    position: absolute;
+    right: 0px;
+    width: 100px;
+    height: 100%;
+    box-shadow: 0 0 10px var(--school-primary), 0 0 5px var(--school-primary);
+    opacity: 1.0;
+    transform: rotate(3deg) translate(0px, -4px);
 }

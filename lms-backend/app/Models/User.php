@@ -19,6 +19,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'avatar',
         'admission_number',
         'password',
         'access_key',
@@ -94,5 +95,15 @@ class User extends Authenticatable
     public function assignmentSubmissions()
     {
         return $this->hasMany(AssignmentSubmission::class, 'student_id');
+    }
+
+    /**
+     * Get the vocabularies this student has explored/mastered.
+     */
+    public function vocabularies()
+    {
+        return $this->belongsToMany(Vocabulary::class, 'user_vocabularies')
+                    ->withPivot(['attempts', 'best_score', 'last_seen_at', 'mastered_at'])
+                    ->withTimestamps();
     }
 }

@@ -1,0 +1,34 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::table('experiments', function (Blueprint $table) {
+            $table->text('requirements')->nullable()->after('youtube_url');
+            $table->text('conclusion')->nullable()->after('explanations');
+            $table->json('knowledge_check')->nullable()->after('conclusion');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::table('experiments', function (Blueprint $table) {
+            $table->dropColumn(['requirements', 'conclusion', 'knowledge_check']);
+        });
+    }
+};

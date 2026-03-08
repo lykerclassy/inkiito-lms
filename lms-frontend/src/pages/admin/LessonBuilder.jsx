@@ -97,8 +97,8 @@ export default function LessonBuilder() {
         ],
     };
 
-    if (isLoading) return <div className="p-8 text-gray-500">Loading editor...</div>;
-    if (!lesson) return <div className="p-8 text-red-500">Lesson not found.</div>;
+    if (isLoading) return <div className="p-4 text-gray-500">Loading editor...</div>;
+    if (!lesson) return <div className="p-4 text-red-500">Lesson not found.</div>;
 
     return (
         <div className="max-w-5xl mx-auto space-y-6 pb-20">
@@ -128,7 +128,7 @@ export default function LessonBuilder() {
                     <Card key={block.id} className="relative group border-2 border-transparent hover:border-blue-100 transition-colors">
 
                         <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-100 px-2 py-1 rounded">
+                            <span className="text-xs font-bold text-gray-400 uppercase  bg-gray-100 px-2 py-1 rounded">
                                 {block.type.replace('_', ' ')}
                             </span>
                             <button onClick={() => removeBlock(index)} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors" title="Delete Block">
@@ -351,7 +351,7 @@ export default function LessonBuilder() {
                 ))}
             </div>
 
-            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center mt-8">
+            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center mt-8">
                 <h3 className="text-gray-600 font-medium mb-4">Add Content Block</h3>
                 <div className="flex flex-wrap justify-center gap-3">
                     <Button variant="outline" onClick={() => addNewBlock('text')}>+ Text Paragraph</Button>

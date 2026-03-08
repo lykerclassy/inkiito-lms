@@ -109,8 +109,8 @@ export default function CurriculumManager() {
         }
     };
 
-    if (isLoading) return <div className="p-8 text-gray-500 font-medium">Loading curriculum structure...</div>;
-    if (error) return <div className="p-8 text-red-500 font-medium">{error}</div>;
+    if (isLoading) return <div className="p-4 text-gray-500 font-medium">Loading curriculum structure...</div>;
+    if (error) return <div className="p-4 text-red-500 font-medium">{error}</div>;
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto pb-20">
@@ -118,7 +118,7 @@ export default function CurriculumManager() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Curriculum Builder</h1>
+                    <h1 className="text-lg font-bold text-gray-900">Curriculum Builder</h1>
                     <p className="text-gray-500 mt-1">Manage subjects, strands, and interactive lessons.</p>
                 </div>
                 <Button variant="primary" onClick={() => openModal('subject')}>
@@ -129,7 +129,7 @@ export default function CurriculumManager() {
             {/* Curriculum Tree */}
             <div className="space-y-4">
                 {subjects.length === 0 ? (
-                    <Card className="p-8 text-center text-gray-500 italic">No subjects created yet. Click above to start.</Card>
+                    <Card className="p-4 text-center text-gray-500">No subjects created yet. Click above to start.</Card>
                 ) : (
                     subjects.map((subject) => (
                         <Card key={subject.id} noPadding={true} className="overflow-hidden border border-gray-200">
@@ -158,7 +158,7 @@ export default function CurriculumManager() {
                             {expandedSubjects.includes(subject.id) && (
                                 <div className="divide-y divide-gray-100 bg-white">
                                     {(!subject.units || subject.units.length === 0) && (
-                                        <div className="px-12 py-4 text-sm text-gray-400 italic">No units/strands added yet.</div>
+                                        <div className="px-5 py-4 text-sm text-gray-400">No units/strands added yet.</div>
                                     )}
                                     
                                     {subject.units?.map((unit) => (
@@ -186,7 +186,7 @@ export default function CurriculumManager() {
                                             {expandedUnits.includes(unit.id) && (
                                                 <div className="pl-6 divide-y divide-gray-50 bg-gray-50/50">
                                                     {(!unit.sub_units || unit.sub_units.length === 0) && (
-                                                        <div className="px-10 py-3 text-sm text-gray-400 italic">No topics added yet.</div>
+                                                        <div className="px-4 py-3 text-sm text-gray-400">No topics added yet.</div>
                                                     )}
 
                                                     {unit.sub_units?.map((subUnit) => (
@@ -214,7 +214,7 @@ export default function CurriculumManager() {
                                                             {expandedSubUnits.includes(subUnit.id) && (
                                                                 <div className="pl-8 py-2 bg-white border-l-4 border-gray-200 space-y-1">
                                                                     {(!subUnit.lessons || subUnit.lessons.length === 0) && (
-                                                                        <div className="px-8 py-2 text-sm text-gray-400 italic">No lessons added yet.</div>
+                                                                        <div className="px-5 py-2 text-sm text-gray-400">No lessons added yet.</div>
                                                                     )}
 
                                                                     {subUnit.lessons?.map((lesson) => (
@@ -222,7 +222,7 @@ export default function CurriculumManager() {
                                                                             <div className="flex items-center gap-3">
                                                                                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                                                 <span className="text-sm text-gray-700">{lesson.title}</span>
-                                                                                {!lesson.is_published && <span className="text-[10px] font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded uppercase tracking-wider">Draft</span>}
+                                                                                {!lesson.is_published && <span className="text-[10px] font-bold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded uppercase ">Draft</span>}
                                                                             </div>
                                                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-3">
                                                                                 <button onClick={() => openModal('lesson', 'edit', null, lesson)} className="text-xs font-medium text-gray-500 hover:text-gray-900">Edit Title</button>
@@ -248,7 +248,7 @@ export default function CurriculumManager() {
             {/* === UNIFIED CREATION / EDIT MODAL === */}
             {modalConfig.isOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-sm w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="text-lg font-bold text-gray-900 capitalize">
                                 {modalConfig.mode} {modalConfig.type.replace('subunit', 'topic')}

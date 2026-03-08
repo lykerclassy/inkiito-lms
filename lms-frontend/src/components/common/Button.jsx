@@ -1,28 +1,29 @@
 import React from 'react';
 
-export default function Button({ 
-    children, 
-    onClick, 
-    type = 'button', 
-    variant = 'primary', 
-    size = 'md', 
-    isLoading = false, 
+export default function Button({
+    children,
+    onClick,
+    type = 'button',
+    variant = 'primary',
+    size = 'md',
+    isLoading = false,
     disabled = false,
     className = ''
 }) {
-    const baseStyle = "inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2";
-    
+    const baseStyle = "inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-sm";
+
     const variants = {
-        primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-        secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500",
-        danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
-        outline: "border-2 border-blue-600 text-blue-600 hover:bg-blue-50 focus:ring-blue-500"
+        primary: "bg-school-primary text-white hover:bg-red-700 focus:ring-school-primary/30 shadow-sm",
+        secondary: "bg-gray-100 text-gray-600 hover:bg-gray-200 focus:ring-gray-200",
+        danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-200",
+        outline: "border border-gray-200 text-gray-600 hover:bg-gray-50 focus:ring-gray-200",
+        ghost: "text-school-primary hover:bg-red-50"
     };
 
     const sizes = {
-        sm: "px-3 py-1.5 text-sm",
-        md: "px-4 py-2 text-base",
-        lg: "px-6 py-3 text-lg"
+        sm: "px-3 py-1.5 text-xs",
+        md: "px-4 py-2 text-sm",
+        lg: "px-5 py-2.5 text-sm"
     };
 
     return (
@@ -30,7 +31,7 @@ export default function Button({
             type={type}
             onClick={onClick}
             disabled={disabled || isLoading}
-            className={`${baseStyle} ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+            className={`${baseStyle} ${variants[variant] ?? variants.primary} ${sizes[size] ?? sizes.md} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
         >
             {isLoading && (
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

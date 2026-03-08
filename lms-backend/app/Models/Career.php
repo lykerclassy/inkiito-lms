@@ -11,6 +11,7 @@ class Career extends Model
 
     protected $fillable = [
         'pathway_id',
+        'track',
         'name',
         'slug',
         'description',

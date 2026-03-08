@@ -234,6 +234,17 @@ class UserController extends Controller
             $user->password = Hash::make($request->password);
         }
 
+        if ($request->hasFile('avatar')) {
+            // Delete old avatar if present
+            if ($user->avatar) {
+                // Delete logic, e.g. \Illuminate\Support\Facades\Storage::disk('public')->delete(str_replace('/storage/', '', $user->avatar))
+                $oldPath = str_replace(url('/storage') . '/', '', $user->avatar);
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($oldPath);
+            }
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $user->avatar = url('/storage/' . $path);
+        }
+
         $user->save();
 
         return response()->json([

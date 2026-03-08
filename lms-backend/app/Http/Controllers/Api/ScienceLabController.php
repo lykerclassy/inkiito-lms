@@ -7,6 +7,9 @@ use App\Models\ScienceLab;
 use App\Models\Experiment;
 use App\Models\Curriculum;
 use App\Models\ExperimentStep;
+use App\Models\User;
+use App\Models\LabQuestion;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str; // Added for Str::slug
 
@@ -14,7 +17,7 @@ class ScienceLabController extends Controller
 {
     public function index()
     {
-        return response()->json(ScienceLab::with(['experiments.curriculum', 'experiments.steps'])->get());
+        return response()->json(ScienceLab::with(['experiments.curriculum', 'experiments.steps', 'coordinator'])->get());
     }
 
     public function getCurriculums()
@@ -24,7 +27,7 @@ class ScienceLabController extends Controller
 
     public function show($id)
     {
-        return ScienceLab::with(['experiments.steps', 'experiments.curriculum'])->findOrFail($id);
+        return ScienceLab::with(['experiments.steps', 'experiments.curriculum', 'coordinator'])->findOrFail($id);
     }
 
     public function storeExperiment(Request $request)
@@ -38,6 +41,12 @@ class ScienceLabController extends Controller
             'level' => 'required|string',
             'duration' => 'required|string',
             'simulation_type' => 'nullable|string',
+            'youtube_url' => 'nullable|string',
+            'requirements' => 'nullable|string',
+            'observations' => 'nullable|string',
+            'explanations' => 'nullable|string',
+            'conclusion' => 'nullable|string',
+            'knowledge_check' => 'nullable|array',
             'steps' => 'array',
         ]);
 
@@ -50,6 +59,12 @@ class ScienceLabController extends Controller
             'level' => $validated['level'],
             'duration' => $validated['duration'],
             'simulation_type' => $validated['simulation_type'] ?? 'none',
+            'youtube_url' => $validated['youtube_url'] ?? null,
+            'requirements' => $validated['requirements'] ?? null,
+            'observations' => $validated['observations'] ?? null,
+            'explanations' => $validated['explanations'] ?? null,
+            'conclusion' => $validated['conclusion'] ?? null,
+            'knowledge_check' => $validated['knowledge_check'] ?? null,
         ]);
 
         if (isset($validated['steps']) && is_array($validated['steps'])) {
@@ -73,6 +88,13 @@ class ScienceLabController extends Controller
             'title' => 'string',
             'level' => 'string',
             'duration' => 'string',
+            'youtube_url' => 'nullable|string',
+            'requirements' => 'nullable|string',
+            'observations' => 'nullable|string',
+            'explanations' => 'nullable|string',
+            'conclusion' => 'nullable|string',
+            'knowledge_check' => 'nullable|array',
+            'simulation_type' => 'nullable|string',
             'steps' => 'array',
             'curriculum_id' => 'nullable|exists:curriculums,id',
             'is_active' => 'boolean'
@@ -108,5 +130,82 @@ class ScienceLabController extends Controller
         $lab->is_active = !$lab->is_active;
         $lab->save();
         return $lab;
+    }
+
+    public function assignCoordinator(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'coordinator_id' => 'nullable|exists:users,id'
+        ]);
+        $lab = ScienceLab::findOrFail($id);
+        $lab->coordinator_id = $validated['coordinator_id'];
+        $lab->save();
+
+        return response()->json(['message' => 'Coordinator assigned successfully', 'lab' => $lab->load('coordinator')]);
+    }
+
+    public function askQuestion(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'question' => 'required|string'
+        ]);
+
+        $lab = ScienceLab::findOrFail($id);
+
+        $question = LabQuestion::create([
+            'science_lab_id' => $lab->id,
+            'student_id' => $request->user()->id,
+            'coordinator_id' => $lab->coordinator_id,
+            'question' => $validated['question'],
+            'status' => 'pending'
+        ]);
+
+        if ($lab->coordinator_id) {
+            Notification::create([
+                'user_id' => $lab->coordinator_id,
+                'type' => 'lab_question',
+                'message' => $request->user()->name . ' asked a question in ' . $lab->name,
+                'link' => '/admin/lab-questions', // To be built in frontend
+                'is_read' => false
+            ]);
+        }
+
+        return response()->json(['message' => 'Question submitted perfectly!', 'question' => $question]);
+    }
+
+    public function getQuestions(Request $request)
+    {
+        $user = $request->user();
+        if ($user->role === 'student') {
+            $questions = LabQuestion::with(['scienceLab', 'coordinator'])->where('student_id', $user->id)->orderBy('created_at', 'desc')->get();
+        } else {
+            // Coordinator or Admin
+            $query = LabQuestion::with(['scienceLab', 'student'])->orderBy('created_at', 'desc');
+            $questions = $query->get();
+        }
+
+        return response()->json($questions);
+    }
+
+    public function answerQuestion(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'answer' => 'required|string'
+        ]);
+
+        $question = LabQuestion::findOrFail($id);
+        $question->answer = $validated['answer'];
+        $question->status = 'answered';
+        $question->save();
+
+        Notification::create([
+            'user_id' => $question->student_id,
+            'type' => 'lab_answer',
+            'message' => 'Your question in ' . ($question->scienceLab->name ?? 'Science Lab') . ' was answered by the coordinator.',
+            'link' => '/student/science-lab', 
+            'is_read' => false
+        ]);
+
+        return response()->json(['message' => 'Answer submitted successfully', 'question' => $question]);
     }
 }
