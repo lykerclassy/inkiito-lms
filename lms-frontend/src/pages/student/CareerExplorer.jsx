@@ -19,7 +19,7 @@ export default function CareerExplorer() {
         const fetchCareers = async () => {
             try {
                 // Fetch all careers (which include the pathway relationship)
-                const response = await api.get('/careers');
+                const response = await api.get('careers');
                 const fetchedCareers = response.data;
                 setCareers(fetchedCareers);
 
@@ -46,7 +46,7 @@ export default function CareerExplorer() {
 
     const handleSetGoal = async (careerId) => {
         try {
-            await api.post('/careers/set-goal', { career_id: careerId });
+            await api.post('careers/set-goal', { career_id: careerId });
             alert("Career goal updated successfully!");
         } catch (error) {
             console.error("Failed to set career goal:", error);
@@ -292,8 +292,8 @@ export default function CareerExplorer() {
                                                         <span
                                                             key={sub.id}
                                                             className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${sub.pivot.is_mandatory
-                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm shadow-blue-500/10'
-                                                                    : 'bg-white text-gray-600 border-gray-200'
+                                                                ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm shadow-blue-500/10'
+                                                                : 'bg-white text-gray-600 border-gray-200'
                                                                 }`}
                                                         >
                                                             {sub.pivot.is_mandatory && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>}
@@ -306,8 +306,8 @@ export default function CareerExplorer() {
                                             <Button
                                                 onClick={() => handleSetGoal(career.id)}
                                                 className={`w-full font-black uppercase tracking-widest text-xs py-3 rounded-xl transition-all shadow-md ${user?.target_career_id === career.id
-                                                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30'
-                                                        : 'bg-school-primary text-white hover:bg-school-primary/90 shadow-school-primary/30'
+                                                    ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30'
+                                                    : 'bg-school-primary text-white hover:bg-school-primary/90 shadow-school-primary/30'
                                                     }`}
                                             >
                                                 {user?.target_career_id === career.id ? '★ Current Goal' : 'Set as Goal'}

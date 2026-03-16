@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -34,9 +34,9 @@ export default function ResourceManager() {
         try {
             // We use the existing endpoints to build the hierarchy
             const [resRes, subRes, curriculumRes] = await Promise.all([
-                api.get('/admin/downloadables'),
-                api.get('/subjects'),
-                api.get('/science-labs/curriculums') // This endpoint returns all curriculums in ScienceLabController
+                api.get('admin/downloadables'),
+                api.get('subjects'),
+                api.get('science-labs/curriculums') // This endpoint returns all curriculums in ScienceLabController
             ]);
 
             setResources(resRes.data.resources || []);
@@ -122,8 +122,8 @@ export default function ResourceManager() {
         }
 
         try {
-            await api.post('/admin/downloadables', uploadData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            await api.post('admin/downloadables', uploadData, {
+                headers: { 'Content-Type': undefined }
             });
 
             setFormData({
@@ -148,7 +148,7 @@ export default function ResourceManager() {
         if (!confirmed) return;
 
         try {
-            await api.delete(`/admin/downloadables/${id}`);
+            await api.delete(`admin/downloadables/${id}`);
             fetchInitialData();
             showNotification("Resource deleted successfully.", "success");
         } catch (err) {
@@ -188,6 +188,7 @@ export default function ResourceManager() {
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Document</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Level</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Subject</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Download</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -205,6 +206,18 @@ export default function ResourceManager() {
                                         </td>
                                         <td className="px-6 py-4 text-[11px] font-black text-gray-600 uppercase tracking-tight">
                                             {r.subject?.name || 'General'}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <a
+                                                href={getMediaUrl(r.file_url)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                download={r.title}
+                                                className="text-school-secondary hover:text-indigo-700 transition-all font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"
+                                            >
+                                                Download
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                            </a>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button

@@ -1,7 +1,8 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
+
 import InstallAppButton from '../../components/common/InstallAppButton';
 
 export default function Login() {
@@ -16,9 +17,10 @@ export default function Login() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        api.get('/settings').then(res => {
+        api.get('settings').then(res => {
             if (res.data?.school_name) setSchoolName(res.data.school_name);
-            if (res.data?.school_logo) setSchoolLogo(res.data.school_logo);
+            if (res.data?.school_logo) setSchoolLogo(getMediaUrl(res.data.school_logo));
+
         }).catch(err => console.error("Could not fetch school settings", err));
     }, []);
 

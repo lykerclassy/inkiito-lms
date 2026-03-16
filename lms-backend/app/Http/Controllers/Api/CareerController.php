@@ -17,6 +17,10 @@ class CareerController extends Controller
 
     public function storePathway(Request $request)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view career pathways.'], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|unique:pathways,name',
             'description' => 'nullable|string',
@@ -30,6 +34,10 @@ class CareerController extends Controller
 
     public function updatePathway(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view career pathways.'], 403);
+        }
+
         $pathway = Pathway::findOrFail($id);
         $validated = $request->validate([
             'name' => 'required|string|unique:pathways,name,' . $id,
@@ -42,8 +50,12 @@ class CareerController extends Controller
         return response()->json($pathway);
     }
 
-    public function destroyPathway($id)
+    public function destroyPathway(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view career pathways.'], 403);
+        }
+
         $pathway = Pathway::findOrFail($id);
         if ($pathway->careers()->count() > 0) {
             return response()->json(['message' => 'Cannot delete pathway with attached careers'], 422);
@@ -65,6 +77,10 @@ class CareerController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view career content.'], 403);
+        }
+
         $validated = $request->validate([
             'pathway_id' => 'required|exists:pathways,id',
             'track' => 'nullable|string',
@@ -102,6 +118,10 @@ class CareerController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view career content.'], 403);
+        }
+
         $career = Career::findOrFail($id);
         $validated = $request->validate([
             'pathway_id' => 'required|exists:pathways,id',
@@ -140,8 +160,12 @@ class CareerController extends Controller
         return response()->json($career->load(['pathway', 'subjects']));
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view career content.'], 403);
+        }
+
         Career::findOrFail($id)->delete();
         return response()->json(['message' => 'Career deleted']);
     }

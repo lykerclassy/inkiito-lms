@@ -28,4 +28,21 @@ class Downloadable extends Model
     {
         return $this->belongsTo(AcademicLevel::class);
     }
+
+    /**
+     * Get the resource's file URL.
+     * Ensures consistent URLs across all environments.
+     */
+    public function getFileUrlAttribute($value)
+    {
+        if (!$value) return null;
+        
+        // If it's already a full URL (external link), return it
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            return $value;
+        }
+
+        // Otherwise generate it using current disk
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($value);
+    }
 }

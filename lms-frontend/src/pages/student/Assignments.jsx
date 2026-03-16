@@ -15,7 +15,7 @@ export default function Assignments() {
 
     const fetchAssignments = async () => {
         try {
-            const response = await api.get('/student/assignments');
+            const response = await api.get('student/assignments');
             const processedAssignments = response.data.map(assignment => {
                 const mySubmission = assignment.submissions && assignment.submissions.length > 0 ? assignment.submissions[0] : null;
                 return { ...assignment, mySubmission, status: mySubmission ? 'completed' : 'pending' };

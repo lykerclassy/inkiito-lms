@@ -15,6 +15,8 @@ import LessonView from './pages/student/LessonView';
 import Assignments from './pages/student/Assignments';
 import AssignmentView from './pages/student/AssignmentView';
 import Grades from './pages/student/Grades';
+import Quizzes from './pages/student/Quizzes';
+import QuizPlayer from './pages/student/QuizPlayer';
 import KeyboardingTracker from './pages/student/KeyboardingTracker';
 import EnglishLearning from './pages/student/EnglishLearning';
 import ICTLab from './pages/student/ICTLab';
@@ -37,6 +39,8 @@ import ScienceLabManager from './pages/admin/ScienceLabManager';
 import CareerManager from './pages/admin/CareerManager';
 import VocabularyManager from './pages/admin/VocabularyManager';
 import ResourceManager from './pages/admin/ResourceManager';
+import QuizManager from './pages/admin/QuizManager';
+import QuizQuestionEditor from './pages/admin/QuizQuestionEditor';
 
 // Shared Pages
 import Profile from './pages/common/Profile';
@@ -44,6 +48,8 @@ import Profile from './pages/common/Profile';
 // --- ROLE GROUPS ---
 const ALL_STAFF = ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher'];
 const MANAGEMENT = ['admin', 'developer', 'principal', 'deputy_principal', 'dos'];
+const SYS_ADMIN = ['admin', 'developer'];
+const CONTENT_STAFF = ALL_STAFF; // All teachers + management can manage content
 
 import nprogress from 'nprogress';
 import 'nprogress/nprogress.css';
@@ -110,7 +116,7 @@ export default function App() {
     // Fetch and Apply Shared Branding (Uniform Colors)
     const applyBranding = async () => {
       try {
-        const res = await api.get('/branding');
+        const res = await api.get('branding');
         const settings = res.data;
         if (settings.brand_primary) document.documentElement.style.setProperty('--school-primary', settings.brand_primary);
         if (settings.brand_secondary) document.documentElement.style.setProperty('--school-secondary', settings.brand_secondary);
@@ -149,7 +155,7 @@ export default function App() {
 
         {/* --- STUDENT ROUTES --- */}
         <Route path="/student/*" element={
-          <ProtectedRoute allowedRoles={['student']}>
+          <ProtectedRoute allowedRoles={['student', ...ALL_STAFF]}>
             <StudentLayout>
               <Routes>
                 <Route path="dashboard" element={<Dashboard />} />
@@ -158,6 +164,8 @@ export default function App() {
                 <Route path="lessons/:id" element={<LessonView />} />
                 <Route path="assignments" element={<Assignments />} />
                 <Route path="assignments/:id" element={<AssignmentView />} />
+                <Route path="quizzes" element={<Quizzes />} />
+                <Route path="quizzes/:id" element={<QuizPlayer />} />
                 <Route path="grades" element={<Grades />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="typing" element={<KeyboardingTracker />} />
@@ -184,9 +192,22 @@ export default function App() {
                 <Route path="assignments" element={<AdminAssignments />} />
                 <Route path="assignments/:id/edit-content" element={<AssignmentBuilder />} />
                 <Route path="grades" element={<AdminGrades />} />
+                <Route path="quizzes" element={<QuizManager />} />
+                <Route path="quizzes/:id/questions" element={<QuizQuestionEditor />} />
                 <Route path="profile" element={<Profile />} />
 
-                {/* RESTRICTED PAGES: Only Management can access these */}
+                {/* CONTENT MANAGEMENT: Available to ALL STAFF (all teachers teach) */}
+                <Route path="science-labs" element={<ScienceLabManager />} />
+                <Route path="career-mapping" element={<CareerManager />} />
+                <Route path="vocabulary-bank" element={<VocabularyManager />} />
+                <Route path="resource-library" element={<ResourceManager />} />
+                <Route path="lab-assets" element={<HardwareManager />} />
+
+                {/* PREVIEW MODES: Point to the same student components but rendered inside AdminLayout */}
+                <Route path="science-labs/view/:slug" element={<ScienceLab />} />
+                <Route path="science-labs/preview/:slug" element={<ExperimentView />} />
+
+                {/* MANAGEMENT RESTRICTED: Curriculum structure & User accounts */}
                 <Route path="curriculum" element={
                   <ProtectedRoute allowedRoles={MANAGEMENT}>
                     <CurriculumManager />
@@ -197,34 +218,11 @@ export default function App() {
                     <UserManagement />
                   </ProtectedRoute>
                 } />
+
+                {/* SYSTEM ADMIN ONLY: App settings */}
                 <Route path="settings" element={
-                  <ProtectedRoute allowedRoles={['admin', 'developer']}>
+                  <ProtectedRoute allowedRoles={SYS_ADMIN}>
                     <Settings />
-                  </ProtectedRoute>
-                } />
-                <Route path="lab-assets" element={
-                  <ProtectedRoute allowedRoles={MANAGEMENT}>
-                    <HardwareManager />
-                  </ProtectedRoute>
-                } />
-                <Route path="science-labs" element={
-                  <ProtectedRoute allowedRoles={MANAGEMENT}>
-                    <ScienceLabManager />
-                  </ProtectedRoute>
-                } />
-                <Route path="career-mapping" element={
-                  <ProtectedRoute allowedRoles={MANAGEMENT}>
-                    <CareerManager />
-                  </ProtectedRoute>
-                } />
-                <Route path="vocabulary-bank" element={
-                  <ProtectedRoute allowedRoles={MANAGEMENT}>
-                    <VocabularyManager />
-                  </ProtectedRoute>
-                } />
-                <Route path="resource-library" element={
-                  <ProtectedRoute allowedRoles={MANAGEMENT}>
-                    <ResourceManager />
                   </ProtectedRoute>
                 } />
               </Routes>

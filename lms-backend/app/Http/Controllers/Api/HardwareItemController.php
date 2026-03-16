@@ -15,6 +15,10 @@ class HardwareItemController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view hardware items.'], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -34,6 +38,10 @@ class HardwareItemController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view hardware items.'], 403);
+        }
+
         $item = HardwareItem::findOrFail($id);
         
         $validated = $request->validate([
@@ -48,8 +56,12 @@ class HardwareItemController extends Controller
         return response()->json($item);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view hardware items.'], 403);
+        }
+
         $item = HardwareItem::findOrFail($id);
         $item->delete();
         return response()->json(['message' => 'Hardware item deleted successfully']);

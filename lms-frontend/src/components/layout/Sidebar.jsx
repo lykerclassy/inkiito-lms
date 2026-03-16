@@ -1,7 +1,8 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
+
 import InstallAppButton from '../common/InstallAppButton';
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
@@ -10,9 +11,10 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     const [schoolLogo, setSchoolLogo] = useState(null);
 
     useEffect(() => {
-        api.get('/settings').then(res => {
+        api.get('settings').then(res => {
             if (res.data?.school_name) setSchoolName(res.data.school_name);
-            if (res.data?.school_logo) setSchoolLogo(res.data.school_logo);
+            if (res.data?.school_logo) setSchoolLogo(getMediaUrl(res.data.school_logo));
+
         }).catch(err => console.error("Could not fetch school settings", err));
     }, []);
 
@@ -115,6 +117,13 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                         }
                     />
                     <NavItem
+                        to="/student/quizzes"
+                        label="Quizzes"
+                        icon={
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l.707.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                        }
+                    />
+                    <NavItem
                         to="/student/english"
                         label="English Hub"
                         icon={
@@ -129,7 +138,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                         }
                     />
 
-                    {user?.curriculum?.name?.includes('CBC') && (
+                    {(user?.curriculum?.name?.includes('CBC') || user?.curriculum?.name?.includes('8-4-4')) && (
                         <NavItem
                             to="/student/typing"
                             label="Typing Tracker"
@@ -139,7 +148,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                         />
                     )}
 
-                    {user?.curriculum?.name?.includes('CBC') && (
+                    {(user?.curriculum?.name?.includes('CBC') || user?.curriculum?.name?.includes('8-4-4')) && (
                         <NavItem
                             to="/student/ict-lab"
                             label="ICT Innovation Lab"

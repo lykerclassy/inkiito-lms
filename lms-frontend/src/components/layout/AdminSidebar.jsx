@@ -1,17 +1,21 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
+
 import InstallAppButton from '../common/InstallAppButton';
 
 export default function AdminSidebar({ isOpen, toggleSidebar }) {
     const { user } = useContext(AuthContext);
 
-    // Define role groupings dynamically
     const role = user?.role;
     const isManagement = ['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(role);
     const isSysAdmin = ['admin', 'developer'].includes(role);
+    const isTeacher = ['teacher', 'class_teacher'].includes(role);
     const isClassTeacher = role === 'class_teacher';
+    const isPrincipal = role === 'principal';
+    const isDeputy = role === 'deputy_principal';
+    const isDos = role === 'dos';
 
     const formatRole = (r) => {
         const roles = {
@@ -24,21 +28,20 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
             developer: 'Developer',
             admin: 'System Admin'
         };
-        return roles[r] || 'Staff'; // Fallback
+        return roles[r] || 'Staff';
     };
 
     const [schoolName, setSchoolName] = useState('Inkiito Manoh');
     const [schoolLogo, setSchoolLogo] = useState(null);
 
     useEffect(() => {
-        api.get('/settings').then(res => {
+        api.get('settings').then(res => {
             if (res.data?.school_name) setSchoolName(res.data.school_name);
-            if (res.data?.school_logo) setSchoolLogo(res.data.school_logo);
+            if (res.data?.school_logo) setSchoolLogo(getMediaUrl(res.data.school_logo));
+
         }).catch(err => console.error("Could not fetch school settings", err));
     }, []);
 
-    // Create a 2-letter abbreviation for the logo block. 
-    // Example: "Inkiito Manoh Academy" -> "IM", "Starehe Boys" -> "SB"
     const generateInitials = (name) => {
         const words = name.split(' ');
         if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
@@ -63,6 +66,12 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
             <span>{label}</span>
         </NavLink>
     );
+
+    const SectionLabel = ({ label }) => (
+        <p className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">{label}</p>
+    );
+
+    const Divider = () => <div className="pt-4 mt-3 border-t border-gray-800" />;
 
     return (
         <>
@@ -94,19 +103,37 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                     </button>
                 </div>
 
+                {/* Role Badge */}
+                <div className="px-4 py-2 border-b border-gray-800">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                        <div className="w-6 h-6 rounded-full bg-school-primary flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {user?.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{formatRole(role)}</p>
+                        </div>
+                    </div>
+                </div>
+
                 <nav className="flex-1 overflow-y-auto py-4 px-4 space-y-1 custom-scrollbar">
+                    {/* Dashboard — Always visible */}
                     <NavItem
                         to="/admin/dashboard"
                         label="Dashboard"
                         icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>}
                     />
 
-                    {/* DOS, PRINCIPALS, & ADMINS */}
+                    {/* ===== MANAGEMENT SECTION ===== */}
                     {isManagement && (
-                        <div className="pt-4 mt-3 border-t border-gray-800">
-                            <p className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">
-                                Management
-                            </p>
+                        <>
+                            <Divider />
+                            <SectionLabel label={
+                                isPrincipal ? 'School Leadership' :
+                                    isDeputy ? 'Deputy Management' :
+                                        isDos ? 'Academic Oversight' :
+                                            'Management'
+                            } />
                             <NavItem
                                 to="/admin/curriculum"
                                 label="Curriculum"
@@ -117,76 +144,81 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                                 label="User Management"
                                 icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
                             />
-                        </div>
+                        </>
                     )}
 
-                    {/* CLASS TEACHER SPECIFIC */}
+                    {/* ===== CLASS TEACHER SECTION ===== */}
                     {isClassTeacher && (
-                        <div className="pt-4 mt-3 border-t border-gray-800">
-                            <p className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">
-                                Class Teacher
-                            </p>
+                        <>
+                            <Divider />
+                            <SectionLabel label="Class Teacher" />
                             <NavItem
-                                to="/admin/my-class"
-                                label="My Class"
+                                to="/admin/grades"
+                                label="My Class Gradebook"
                                 icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
                             />
-                        </div>
+                        </>
                     )}
 
-                    <div className="pt-4 mt-3 border-t border-gray-800">
-                        <p className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">
-                            Assessment
-                        </p>
-                        <NavItem
-                            to="/admin/assignments"
-                            label="Assignments"
-                            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>}
-                        />
-                        <NavItem
-                            to="/admin/grades"
-                            label="Gradebook"
-                            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
-                        />
-                    </div>
+                    {/* ===== ASSESSMENT SECTION (All Staff) ===== */}
+                    <Divider />
+                    <SectionLabel label="Assessment" />
+                    <NavItem
+                        to="/admin/assignments"
+                        label="Assignments"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/quizzes"
+                        label="Quiz Manager"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l.707.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/grades"
+                        label="Gradebook"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+                    />
 
-                    {/* SYSTEM ADMIN SPECIFIC */}
+                    {/* ===== CONTENT TOOLS (All Staff — all teachers teach) ===== */}
+                    <Divider />
+                    <SectionLabel label="Content & Resources" />
+                    <NavItem
+                        to="/admin/science-labs"
+                        label="Science Labs"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/career-mapping"
+                        label="Career Pathways"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/vocabulary-bank"
+                        label="Vocabulary Bank"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/resource-library"
+                        label="Resource Library"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/lab-assets"
+                        label="ICT Lab Assets"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
+                    />
+
+                    {/* ===== SYSTEM ADMIN SECTION ===== */}
                     {isSysAdmin && (
-                        <div className="pt-4 mt-3 border-t border-gray-800">
-                            <p className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">
-                                System
-                            </p>
+                        <>
+                            <Divider />
+                            <SectionLabel label="System" />
                             <NavItem
                                 to="/admin/settings"
                                 label="System Settings"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                             />
-                            <NavItem
-                                to="/admin/lab-assets"
-                                label="ICT Lab Assets"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
-                            />
-                            <NavItem
-                                to="/admin/science-labs"
-                                label="Science Labs"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
-                            />
-                            <NavItem
-                                to="/admin/career-mapping"
-                                label="Career Pathways"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
-                            />
-                            <NavItem
-                                to="/admin/vocabulary-bank"
-                                label="Vocabulary Bank"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
-                            />
-                            <NavItem
-                                to="/admin/resource-library"
-                                label="Resource Library"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
-                            />
-                        </div>
+                        </>
                     )}
 
                     {/* App Install Prompt */}

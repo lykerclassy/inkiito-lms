@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import EnrollmentIndicator from '../../components/common/EnrollmentIndicator';
 import { useNotification } from '../../contexts/NotificationContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function UserManagement() {
+    const { user: currentUser } = useContext(AuthContext);
     const [activeTab, setActiveTab] = useState('students');
     const [searchQuery, setSearchQuery] = useState('');
     const { showNotification, askConfirmation } = useNotification();
@@ -13,6 +15,8 @@ export default function UserManagement() {
     // Database State
     const [users, setUsers] = useState([]);
     const [allSubjects, setAllSubjects] = useState([]); // Needed for the "Add Subject" dropdown
+    const [academicLevels, setAcademicLevels] = useState([]);
+    const [curriculums, setCurriculums] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -37,7 +41,7 @@ export default function UserManagement() {
     // Form Data State
     const initialFormState = {
         name: '', role: 'student', email: '', password: '',
-        admission_number: '', curriculum_id: '1', academic_level_id: '1'
+        admission_number: '', curriculum_id: '', academic_level_id: ''
     };
     const [formData, setFormData] = useState(initialFormState);
 
@@ -49,12 +53,38 @@ export default function UserManagement() {
 
     const fetchData = async () => {
         try {
-            const [usersRes, subjectsRes] = await Promise.all([
-                api.get('/users'),
-                api.get('/subjects')
+            const [usersRes, subjectsRes, levelsRes, curriculumsRes] = await Promise.all([
+                api.get('users'),
+                api.get('subjects'),
+                api.get('academic-levels'),
+                api.get('settings/curriculums') // Assuming this endpoint exists, or adjust as needed
             ]);
             setUsers(usersRes.data);
             setAllSubjects(subjectsRes.data);
+            setAcademicLevels(levelsRes.data);
+            
+            // If settings/curriculums doesn't exist yet, we can extract from academicLevels or fetch separately
+            // For now, let's assume we need an endpoint for it or we can derive it
+            if (curriculumsRes) {
+                setCurriculums(curriculumsRes.data);
+            } else {
+                // Fallback: derive from academic levels
+                const uniqueCurriculums = [];
+                const seenIds = new Set();
+                levelsRes.data.forEach(lvl => {
+                    if (lvl.curriculum && !seenIds.has(lvl.curriculum.id)) {
+                        uniqueCurriculums.push(lvl.curriculum);
+                        seenIds.add(lvl.curriculum.id);
+                    }
+                });
+                setCurriculums(uniqueCurriculums);
+            }
+
+            // Set default IDs if not set ONLY if adding a new user and we have data
+            if (levelsRes.data.length > 0 && !formData.academic_level_id) {
+                // Do not auto-set if we are already editing or have interaction
+            }
+
         } catch (err) {
             console.error("Failed to fetch data:", err);
             setError("Could not load database. Please check your connection.");
@@ -114,7 +144,7 @@ export default function UserManagement() {
                 formattedData[e.subject_id] = { status: e.status };
             });
 
-            await api.put(`/users/${selectedStudent.id}/enrollments`, {
+            await api.put(`users/${selectedStudent.id}/enrollments`, {
                 enrollments: formattedData
             });
 
@@ -138,7 +168,7 @@ export default function UserManagement() {
         setAddError('');
 
         try {
-            const response = await api.post('/users', formData);
+            const response = await api.post('users', formData);
             await fetchData();
             setIsAddModalOpen(false);
             setFormData(initialFormState);
@@ -162,7 +192,7 @@ export default function UserManagement() {
         setEditError('');
 
         try {
-            await api.put(`/users/${editingUser.id}`, formData);
+            await api.put(`users/${editingUser.id}`, formData);
             await fetchData();
             setIsEditModalOpen(false);
             showNotification("User updated successfully!", "success");
@@ -178,7 +208,7 @@ export default function UserManagement() {
         if (!confirmed) return;
 
         try {
-            await api.delete(`/users/${userId}`);
+            await api.delete(`users/${userId}`);
             await fetchData();
             showNotification("User deleted successfully.", "success");
         } catch (err) {
@@ -198,8 +228,8 @@ export default function UserManagement() {
         data.append('role', importRole);
 
         try {
-            const res = await api.post('/users/import-csv', data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            const res = await api.post('users/import-csv', data, {
+                headers: { 'Content-Type': undefined }
             });
             await fetchData();
             setIsImportModalOpen(false);
@@ -219,8 +249,8 @@ export default function UserManagement() {
             role: user.role || 'student',
             email: user.email || '',
             admission_number: user.admission_number || '',
-            curriculum_id: user.curriculum_id || '1',
-            academic_level_id: user.academic_level_id || '1',
+            curriculum_id: user.curriculum_id?.toString() || '',
+            academic_level_id: user.academic_level_id?.toString() || '',
             password: '', // Leave clear
             access_key: user.access_key || ''
         });
@@ -352,18 +382,23 @@ export default function UserManagement() {
                                                     Enrollments
                                                 </Button>
                                             )}
-                                            <button
-                                                onClick={() => openEditModal(user)}
-                                                className="p-1 px-3 text-blue-600 hover:bg-blue-50 rounded border border-blue-100 font-medium transition-colors text-xs uppercase"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteUser(user.id)}
-                                                className="p-1 px-3 text-red-500 hover:bg-red-50 rounded border border-red-100 font-medium transition-colors text-xs uppercase"
-                                            >
-                                                Delete
-                                            </button>
+                                            {/* Restrict DOS from editing/deleting administrative roles */}
+                                            {!(currentUser?.role === 'dos' && ['admin', 'principal', 'deputy_principal', 'dos', 'developer'].includes(user.role)) && (
+                                                <>
+                                                    <button
+                                                        onClick={() => openEditModal(user)}
+                                                        className="p-1 px-3 text-blue-600 hover:bg-blue-50 rounded border border-blue-100 font-medium transition-colors text-xs uppercase"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteUser(user.id)}
+                                                        className="p-1 px-3 text-red-500 hover:bg-red-50 rounded border border-red-100 font-medium transition-colors text-xs uppercase"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -398,14 +433,13 @@ export default function UserManagement() {
                                             <option value="class_teacher">Class Teacher</option>
                                             <option value="dos">Director of Studies (DOS)</option>
                                         </optgroup>
-                                        <optgroup label="Administration">
-                                            <option value="deputy_principal">Deputy Principal</option>
-                                            <option value="principal">Principal</option>
-                                        </optgroup>
-                                        <optgroup label="IT & Operations">
-                                            <option value="admin">System Admin</option>
-                                            <option value="developer">Developer</option>
-                                        </optgroup>
+                                        {currentUser?.role !== 'dos' && (
+                                            <optgroup label="Administration">
+                                                <option value="deputy_principal">Deputy Principal</option>
+                                                <option value="principal">Principal</option>
+                                                <option value="admin">System Admin</option>
+                                            </optgroup>
+                                        )}
                                     </select>
                                 </div>
                                 <div>
@@ -422,15 +456,22 @@ export default function UserManagement() {
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Curriculum</label>
                                                 <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.curriculum_id} onChange={(e) => setFormData({ ...formData, curriculum_id: e.target.value })}>
-                                                    <option value="1">CBC</option>
-                                                    <option value="2">8-4-4</option>
+                                                    <option value="">Select Curriculum</option>
+                                                    {curriculums.map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
                                                 <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.academic_level_id} onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })}>
-                                                    <option value="1">Grade 10</option>
-                                                    <option value="2">Form 3</option>
+                                                    <option value="">Select Level</option>
+                                                    {academicLevels
+                                                        .filter(lvl => !formData.curriculum_id || lvl.curriculum_id.toString() === formData.curriculum_id.toString())
+                                                        .map(lvl => (
+                                                            <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
+                                                        ))
+                                                    }
                                                 </select>
                                             </div>
                                         </div>
@@ -482,7 +523,9 @@ export default function UserManagement() {
                                             <option value="teacher">Teacher</option>
                                             <option value="class_teacher">Class Teacher</option>
                                             <option value="dos">Director of Studies</option>
-                                            <option value="admin">System Admin</option>
+                                            {currentUser?.role !== 'dos' && (
+                                                <option value="admin">System Admin</option>
+                                            )}
                                         </optgroup>
                                     </select>
                                 </div>
@@ -506,15 +549,20 @@ export default function UserManagement() {
                                             <div>
                                                 <label className="block text-xs font-semibold text-gray-400 mb-1.5">Curriculum</label>
                                                 <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.curriculum_id} onChange={(e) => setFormData({ ...formData, curriculum_id: e.target.value })}>
-                                                    <option value="1">CBC</option>
-                                                    <option value="2">8-4-4</option>
+                                                    {curriculums.map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-gray-400 mb-1.5">Level</label>
                                                 <select className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500" value={formData.academic_level_id} onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })}>
-                                                    <option value="1">Grade 10</option>
-                                                    <option value="2">Form 3</option>
+                                                    {academicLevels
+                                                        .filter(lvl => !formData.curriculum_id || lvl.curriculum_id.toString() === formData.curriculum_id.toString())
+                                                        .map(lvl => (
+                                                            <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
+                                                        ))
+                                                    }
                                                 </select>
                                             </div>
                                         </div>

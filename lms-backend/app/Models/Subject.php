@@ -43,4 +43,17 @@ class Subject extends Model
     {
         return $this->belongsToMany(User::class)->withPivot('status')->withTimestamps();
     }
+
+    /**
+     * Get the teachers assigned to teach this subject.
+     */
+    public function teachers()
+    {
+        return $this->belongsToMany(User::class, 'subject_teacher')->withTimestamps();
+    }
+
+    public function quizzes()
+    {
+        return $this->hasMany(Quiz::class);
+    }
 }

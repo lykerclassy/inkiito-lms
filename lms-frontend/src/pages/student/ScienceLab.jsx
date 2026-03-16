@@ -30,7 +30,7 @@ export default function ScienceLab() {
 
     const fetchMyQuestions = async () => {
         try {
-            const res = await api.get('/lab-questions');
+            const res = await api.get('lab-questions');
             setMyQuestions(res.data);
         } catch (err) {
             console.error("Failed to fetch lab questions", err);
@@ -39,7 +39,7 @@ export default function ScienceLab() {
 
     const fetchLabs = async () => {
         try {
-            const res = await api.get('/science-labs');
+            const res = await api.get('science-labs');
             const mappedLabs = res.data.map(lab => ({
                 ...lab,
                 db_id: lab.id,
@@ -67,7 +67,8 @@ export default function ScienceLab() {
     const handleLaunchSimulation = (exp) => {
         const safeLab = { ...selectedLab };
         delete safeLab.icon;
-        navigate(`/student/science-lab/${exp.slug}`, { state: { experiment: exp, lab: safeLab } });
+        const basePath = location.pathname.startsWith('/admin') ? '/admin/science-labs/preview' : '/student/science-lab';
+        navigate(`${basePath}/${exp.slug}`, { state: { experiment: exp, lab: safeLab } });
     };
 
     const handleAskCoordinator = async (e) => {
@@ -75,7 +76,7 @@ export default function ScienceLab() {
         if (!question.trim() || !selectedLab) return;
         setIsSubmittingAsk(true);
         try {
-            await api.post(`/science-labs/${selectedLab.db_id}/ask`, { question });
+            await api.post(`science-labs/${selectedLab.db_id}/ask`, { question });
             setQuestion('');
             setCoordinatorTab('history');
             fetchMyQuestions();
@@ -192,47 +193,68 @@ export default function ScienceLab() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
                         <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {(selectedLab.experiments[curriculum] || []).map(exp => (
-                                <Card key={exp.id} className="group relative border-none shadow-sm rounded-2xl bg-white p-4 flex flex-col justify-between border border-gray-100 hover:ring-school-primary/20 transition-all duration-500 overflow-hidden">
-                                    <div className="space-y-4 relative z-10">
-                                        <div className="flex justify-between items-start">
-                                            <span className="px-5 py-2 bg-gray-900 text-white text-[10px] font-medium uppercase rounded-xl italic">{exp.level} LEVEL</span>
-                                            <span className="text-xs font-semibold text-gray-300 italic">{exp.duration}</span>
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900 italic group-hover:text-school-primary transition-colors leading-none">{exp.title}</h3>
-                                        <div className="space-y-4 pt-6 border-t border-gray-50">
-                                            {(exp.steps || []).slice(0, 3).map((s, i) => (
-                                                <div key={i} className="flex gap-4 items-center">
-                                                    <span className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-xs font-semibold text-gray-400 italic shadow-sm border border-gray-100">{i + 1}</span>
-                                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-tight italic truncate">{s.instruction}</span>
-                                                </div>
-                                            ))}
-                                            {exp.steps?.length > 3 && (
-                                                <p className="text-xs font-semibold text-school-primary ml-10 italic">+ {exp.steps.length - 3} MORE STEPS</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <Button
-                                        className="w-full mt-10 py-6 text-xs font-semibold text-gray-500 italic rounded-2xl shadow-sm shadow-red-100 transition-all hover:-translate-y-1 active:translate-y-0"
-                                        onClick={() => handleLaunchSimulation(exp)}
-                                    >
-                                        START EXPERIMENT
-                                    </Button>
-                                    <div className="absolute top-0 right-0 -mr-8 -mt-8 w-12 h-12 bg-school-primary/5 rounded-full blur-3xl group-hover:bg-school-primary/10 transition-all duration-1000"></div>
-                                </Card>
-                            ))}
+                            {(() => {
+                                const allExps = Object.values(selectedLab.experiments).flat();
+                                const currentExps = selectedLab.experiments[curriculum] || [];
 
-                            {(selectedLab.experiments[curriculum] || []).length === 0 && (
-                                <div className="col-span-full py-32 bg-gray-50/50 rounded-2xl border-4 border-dashed border-gray-100 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in duration-300">
-                                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-gray-200 shadow-sm shadow-gray-100">
-                                        <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <h3 className="text-lg font-bold text-gray-300">No Experiments Available</h3>
-                                        <p className="text-gray-400 font-bold text-xs max-w-sm mx-auto opacity-80 leading-relaxed">No {curriculum} experiments have been added yet.</p>
-                                    </div>
-                                </div>
-                            )}
+                                if (currentExps.length === 0 && allExps.length > 0) {
+                                    return (
+                                        <div className="col-span-full py-20 bg-amber-50/30 rounded-2xl border-2 border-dashed border-amber-200 flex flex-col items-center justify-center text-center space-y-4">
+                                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shadow-sm">
+                                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <h3 className="text-lg font-bold text-amber-900">Switch Curriculum</h3>
+                                                <p className="text-amber-800 font-medium text-xs max-w-sm mx-auto">There are {allExps.length} experiments in other curriculums. Try switching to 8-4-4 or CBC above.</p>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (allExps.length === 0) {
+                                    return (
+                                        <div className="col-span-full py-32 bg-gray-50/50 rounded-2xl border-4 border-dashed border-gray-100 flex flex-col items-center justify-center text-center space-y-4">
+                                            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-gray-200 shadow-sm shadow-gray-100">
+                                                <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <h3 className="text-lg font-bold text-gray-300">No Experiments Available</h3>
+                                                <p className="text-gray-400 font-bold text-xs max-w-sm mx-auto opacity-80">This lab is currently empty.</p>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                return currentExps.map(exp => (
+                                    <Card key={exp.id} className="group relative border-none shadow-sm rounded-2xl bg-white p-4 flex flex-col justify-between border border-gray-100 hover:ring-school-primary/20 transition-all duration-500 overflow-hidden">
+                                        <div className="space-y-4 relative z-10">
+                                            <div className="flex justify-between items-start">
+                                                <span className="px-5 py-2 bg-gray-900 text-white text-[10px] font-medium uppercase rounded-xl italic">{exp.level} LEVEL</span>
+                                                <span className="text-xs font-semibold text-gray-300 italic">{exp.duration}</span>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-gray-900 italic group-hover:text-school-primary transition-colors leading-none">{exp.title}</h3>
+                                            <div className="space-y-4 pt-6 border-t border-gray-50">
+                                                {(exp.steps || []).slice(0, 3).map((s, i) => (
+                                                    <div key={i} className="flex gap-4 items-center">
+                                                        <span className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-xs font-semibold text-gray-400 italic shadow-sm border border-gray-100">{i + 1}</span>
+                                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-tight italic truncate">{s.instruction}</span>
+                                                    </div>
+                                                ))}
+                                                {exp.steps?.length > 3 && (
+                                                    <p className="text-xs font-semibold text-school-primary ml-10 italic">+ {exp.steps.length - 3} MORE STEPS</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <Button
+                                            className="w-full mt-10 py-6 text-xs font-semibold text-gray-500 italic rounded-2xl shadow-sm shadow-red-100 transition-all hover:-translate-y-1 active:translate-y-0"
+                                            onClick={() => handleLaunchSimulation(exp)}
+                                        >
+                                            START EXPERIMENT
+                                        </Button>
+                                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-12 h-12 bg-school-primary/5 rounded-full blur-3xl group-hover:bg-school-primary/10 transition-all duration-1000"></div>
+                                    </Card>
+                                ));
+                            })()}
                         </div>
 
                         <div className="space-y-5">

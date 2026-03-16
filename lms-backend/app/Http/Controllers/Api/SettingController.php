@@ -37,7 +37,9 @@ class SettingController extends Controller
      */
     public function update(Request $request)
     {
-        $data = $request->except(['school_logo']);
+        // Keys that should NEVER be saved as settings (reserved/dangerous)
+        $blacklist = ['_method', '_token', 'school_logo'];
+        $data = $request->except($blacklist);
         
         foreach ($data as $key => $value) {
             Setting::updateOrCreate(
@@ -48,12 +50,19 @@ class SettingController extends Controller
 
         if ($request->hasFile('school_logo')) {
             $path = $request->file('school_logo')->store('config', 'public');
+            // Store the relative path (e.g. config/abc.jpg).
+            // The frontend getMediaUrl() handles converting to full URL for both local and production.
             Setting::updateOrCreate(
                 ['key' => 'school_logo'],
-                ['value' => url('/storage/' . $path)]
+                ['value' => 'storage/' . $path]
             );
         }
 
         return response()->json(['message' => 'Settings updated successfully']);
+    }
+
+    public function getCurriculums()
+    {
+        return response()->json(\App\Models\Curriculum::all());
     }
 }

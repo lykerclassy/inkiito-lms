@@ -14,17 +14,57 @@ class AIController extends Controller
     public function generateVocabulary(Request $request)
     {
         $user = $request->user();
-        $apiKey = config('services.gemini.key');
-        $useAi = !empty($apiKey);
         $wordData = null;
+        $apiKey = config('services.gemini.key');
 
-        if ($useAi) {
+        // --- Step 1: Always serve from the LOCAL DATABASE pool first ---
+        // This prevents quota exhaustion by not calling AI on every request.
+        // The database pool should always have words.
+
+        // Get IDs of words the student has ALREADY mastered
+        $masteredWordIds = \App\Models\Vocabulary::whereHas('users', function ($q) use ($user) {
+            $q->where('user_id', $user->id)->whereNotNull('mastered_at');
+        })->pluck('id');
+
+        // Find a word from the pool they haven't seen recently or mastered
+        $seenWordIds = \App\Models\Vocabulary::whereHas('users', function ($q) use ($user) {
+            $q->where('user_id', $user->id);
+        })->pluck('id');
+
+        // Prefer: unseen > seen but not mastered > anything at all
+        $word = \App\Models\Vocabulary::whereNotIn('id', $seenWordIds)->inRandomOrder()->first()
+            ?? \App\Models\Vocabulary::whereNotIn('id', $masteredWordIds)->inRandomOrder()->first()
+            ?? \App\Models\Vocabulary::inRandomOrder()->first();
+
+        if ($word) {
+            $wordData = [
+                'id' => $word->id,
+                'word' => $word->word,
+                'definition' => $word->definition,
+                'phonetic' => $word->phonetic,
+                'category' => $word->category,
+                'is_ai_generated' => false
+            ];
+        }
+
+        // --- Step 2: Smart Background Replenishment ---
+        // Only call Gemini if: API key exists AND enough time has passed since last call.
+        // This prevents burning the entire daily quota on a single student session.
+        // We use the Laravel file cache to rate-limit calls (max 1 every 2 hours).
+        $cacheKey = 'gemini_vocab_last_fetch';
+        $lastFetch = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        $shouldFetchFromAi = !empty($apiKey) && (!$lastFetch || now()->diffInMinutes($lastFetch) >= 120);
+
+        if ($shouldFetchFromAi) {
+            // Mark that we're fetching now to prevent other requests triggering simultaneously
+            \Illuminate\Support\Facades\Cache::put($cacheKey, now(), now()->addHours(3));
+
             try {
-                // Background optimization: Fetch 3 words in one call.
-                // We return 1 to the student, and quietly save the other 2 to build the pool 3x faster!
+                // Fetch a small batch to enrich the pool (not to show directly)
                 $batchData = $this->fetchFromGemini($apiKey, 3);
-                
+
                 if (!empty($batchData) && is_array($batchData)) {
+                    $newlyAdded = null;
                     foreach ($batchData as $wd) {
                         if (isset($wd['word'])) {
                             $savedWord = \App\Models\Vocabulary::updateOrCreate(
@@ -36,70 +76,48 @@ class AIController extends Controller
                                     'difficulty' => 3
                                 ]
                             );
-                            
-                            // Let the first one we process be the one the user sees
-                            if (!$wordData) {
-                                $wordData = [
-                                    'id' => $savedWord->id,
-                                    'word' => $savedWord->word,
-                                    'definition' => $savedWord->definition,
-                                    'phonetic' => $savedWord->phonetic,
-                                    'category' => $savedWord->category,
-                                    'is_ai_generated' => true
-                                ];
+                            if (!$newlyAdded) {
+                                $newlyAdded = $savedWord;
                             }
                         }
+                    }
+
+                    // If the user has not seen this new word, serve it instead
+                    if ($newlyAdded && !$seenWordIds->contains($newlyAdded->id)) {
+                        $wordData = [
+                            'id' => $newlyAdded->id,
+                            'word' => $newlyAdded->word,
+                            'definition' => $newlyAdded->definition,
+                            'phonetic' => $newlyAdded->phonetic,
+                            'category' => $newlyAdded->category,
+                            'is_ai_generated' => true
+                        ];
                     }
                 }
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Gemini AI Hub Error: " . $e->getMessage());
-                $useAi = false; // Trigger database fallback
+                // Fallback gracefully - the local wordData will be returned
             }
         }
 
-        // --- DATABASE FALLBACK (If AI fails or is disabled) ---
-        if (!$useAi || !$wordData) {
-            // 1. Get IDs of words the student has ALREADY mastered
-            $masteredWordIds = \App\Models\Vocabulary::whereHas('users', function ($q) use ($user) {
-                $q->where('user_id', $user->id)->whereNotNull('mastered_at');
-            })->pluck('id');
-
-            // 2. Find a word from the pool they haven't mastered
-            $word = \App\Models\Vocabulary::whereNotIn('id', $masteredWordIds)
-                ->inRandomOrder()
-                ->first();
-
-            // 3. Absolute fallback (even if they mastered everything, show a random one)
-            if (!$word) {
-                $word = \App\Models\Vocabulary::inRandomOrder()->first();
-            }
-
-            if ($word) {
-                $wordData = [
-                    'id' => $word->id,
-                    'word' => $word->word,
-                    'definition' => $word->definition,
-                    'phonetic' => $word->phonetic,
-                    'category' => $word->category,
-                    'is_ai_generated' => false
-                ];
-            }
-        }
-
-        // 4. Log the viewing in our user relationship
-        if (isset($wordData['id']) || isset($word)) {
-            $dbWordId = $wordData['id'] ?? $word->id;
+        // Log the viewing in our user relationship
+        if ($wordData && isset($wordData['id'])) {
             $user->vocabularies()->syncWithoutDetaching([
-                $dbWordId => ['last_seen_at' => now()]
+                $wordData['id'] => ['last_seen_at' => now()]
             ]);
         }
 
         if (!$wordData) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No vocabulary available. Please ensure the AI key is active or the admin has added words.'
+                'message' => 'No vocabulary available. The admin needs to add words to the vocabulary bank.'
             ], 404);
         }
+
+        $isMastered = $user->vocabularies()
+            ->where('vocabulary_id', $wordData['id'])
+            ->whereNotNull('mastered_at')
+            ->exists();
 
         return response()->json([
             'id' => $wordData['id'],
@@ -107,8 +125,8 @@ class AIController extends Controller
             'definition' => $wordData['definition'],
             'phonetic' => $wordData['phonetic'],
             'category' => $wordData['category'],
-            'is_ai_generated' => $useAi,
-            'is_mastered' => isset($dbWordId) ? $user->vocabularies()->where('vocabulary_id', $dbWordId)->whereNotNull('mastered_at')->exists() : false,
+            'is_ai_generated' => $wordData['is_ai_generated'] ?? false,
+            'is_mastered' => $isMastered,
             'mastered_count' => $user->vocabularies()->whereNotNull('mastered_at')->count(),
             'total_library_count' => \App\Models\Vocabulary::count()
         ]);
@@ -120,17 +138,17 @@ class AIController extends Controller
      */
     private function fetchFromGemini($apiKey, $count = 1)
     {
-        // Using the exact user-requested model and endpoint
-        $url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
+        // Using v1beta endpoint for latest model support (Gemini 2.5)
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
         
         $prompt = "Act as a high-level English Professor. Generate exactly $count unique, advanced English vocabulary word(s) suitable for a grade 10-12 student.
         Distribute them across academic categories (e.g., Science, Technology, Literature, Philosophy, Psychology, General).
         YOU MUST RETURN ONLY A RAW JSON ARRAY containing exactly $count objects. 
         Each object MUST have exactly these keys: 'word', 'definition', 'phonetic', 'category'. 
-        The words must be academically challenging. Do not include markdown like ```json.
-        Example: [{\"word\": \"Ephemeral\", \"definition\": \"Lasting for a very short time\", \"phonetic\": \"/ɪˈfɛm(ə)rəl/\", \"category\": \"General\"}]";
+        The words must be academically challenging.
+        Example Format: [{\"word\": \"Ephemeral\", \"definition\": \"Lasting for a very short time\", \"phonetic\": \"/ɪˈfɛm(ə)rəl/\", \"category\": \"General\"}]";
 
-        $client = new \GuzzleHttp\Client(['timeout' => 30]); // Extra time for batching
+        $client = new \GuzzleHttp\Client(['timeout' => 45]);
         
         try {
             $response = $client->post($url, [
@@ -142,18 +160,28 @@ class AIController extends Controller
                     'contents' => [['parts' => [['text' => $prompt]]]],
                     'generationConfig' => [
                         'temperature' => 1.0,
-                        'maxOutputTokens' => 1500 // Increased tokens for multiple words
+                        'maxOutputTokens' => 2048
                     ]
                 ]
             ]);
 
             $data = json_decode($response->getBody(), true);
             $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $cleanJson = preg_replace('/```(json)?|```/s', '', $text);
+            
+            // Robust JSON extraction: Find the first [ and last ]
+            $start = strpos($text, '[');
+            $end = strrpos($text, ']');
+            
+            if ($start !== false && $end !== false) {
+                $cleanJson = substr($text, $start, $end - $start + 1);
+            } else {
+                $cleanJson = preg_replace('/```(json)?|```/s', '', $text);
+            }
+
             $decoded = json_decode(trim($cleanJson), true);
 
             if (!$decoded || !is_array($decoded)) {
-                 throw new \Exception("AI returned invalid JSON: " . substr($text, 0, 100));
+                 throw new \Exception("AI returned invalid JSON structure. Content: " . substr($text, 0, 100));
             }
 
             // Fallback for AI occasionally returning single object instead of array
@@ -165,7 +193,7 @@ class AIController extends Controller
 
         } catch (\GuzzleHttp\Exception\RequestException $e) {
             $errorBody = $e->hasResponse() ? json_decode($e->getResponse()->getBody(), true) : [];
-            $message = $errorBody['error']['message'] ?? "No compatible Gemini model found for your key.";
+            $message = $errorBody['error']['message'] ?? $e->getMessage();
             throw new \Exception("Gemini API Error: " . $message);
         }
     }
@@ -204,6 +232,55 @@ class AIController extends Controller
                 'status' => 'error',
                 'message' => $e->getMessage(),
                 'diagnostics' => $testResults
+            ], 500);
+        }
+    }
+
+    /**
+     * ADMIN: Force replenish the vocabulary bank using Gemini AI.
+     */
+    public function replenishPool(Request $request)
+    {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers cannot trigger AI generation.'], 403);
+        }
+
+        $apiKey = config('services.gemini.key');
+        if (empty($apiKey)) {
+            return response()->json(['status' => 'error', 'message' => 'Gemini API Key is missing.'], 400);
+        }
+
+        try {
+            $count = $request->input('count', 5);
+            $batchData = $this->fetchFromGemini($apiKey, $count);
+            $addedCount = 0;
+
+            if (!empty($batchData) && is_array($batchData)) {
+                foreach ($batchData as $wd) {
+                    if (isset($wd['word'])) {
+                        \App\Models\Vocabulary::updateOrCreate(
+                            ['word' => $wd['word']],
+                            [
+                                'definition' => $wd['definition'] ?? '',
+                                'phonetic' => $wd['phonetic'] ?? '-',
+                                'category' => $wd['category'] ?? 'General',
+                                'difficulty' => 3
+                            ]
+                        );
+                        $addedCount++;
+                    }
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Successfully added $addedCount new words to the library using AI.",
+                'words' => $batchData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI Replenishment failed: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -258,6 +335,10 @@ class AIController extends Controller
      */
     public function store(Request $request)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view vocabulary content.'], 403);
+        }
+
         $request->validate([
             'word' => 'required|string|unique:vocabularies',
             'definition' => 'required|string',
@@ -276,8 +357,12 @@ class AIController extends Controller
     /**
      * ADMIN: Remove a word from the pool.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if ($request->user()->role === 'teacher') {
+            return response()->json(['message' => 'Teachers can only view vocabulary content.'], 403);
+        }
+
         $vocabulary = \App\Models\Vocabulary::findOrFail($id);
         $vocabulary->delete();
 

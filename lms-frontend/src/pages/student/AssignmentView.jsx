@@ -19,7 +19,7 @@ export default function AssignmentView() {
     // Added support for image attachments
     const fetchAssignment = async () => {
         try {
-            const response = await api.get('/student/assignments');
+            const response = await api.get('student/assignments');
             const foundAssignment = response.data.find(a => a.id === parseInt(id));
 
             if (!foundAssignment) {
@@ -70,7 +70,7 @@ export default function AssignmentView() {
                     answer: studentAnswers[block.id] || (block.type === 'checkboxes' ? [] : '')
                 }));
 
-            await api.post(`/assignments/${assignment.id}/submit`, { answers: formattedAnswers });
+            await api.post(`assignments/${assignment.id}/submit`, { answers: formattedAnswers });
             await fetchAssignment();
             alert("Great job! Your assessment has been handed in.");
             navigate('/student/assignments');
@@ -82,8 +82,12 @@ export default function AssignmentView() {
     };
 
     const getBlocks = (contentString) => {
-        try { return typeof contentString === 'string' ? JSON.parse(contentString) : (contentString || []); }
-        catch (e) { return []; }
+        try {
+            const parsed = typeof contentString === 'string' ? JSON.parse(contentString) : contentString;
+            return parsed || [];
+        } catch (e) {
+            return [];
+        }
     };
 
     if (isLoading) {
@@ -192,15 +196,51 @@ export default function AssignmentView() {
                                     </div>
                                 )}
 
-                                {block.type === 'video_info' && block.url && (
-                                    <div className="relative w-full overflow-hidden rounded-2xl shadow-xl shadow-gray-200 border border-gray-100 my-8 bg-black" style={{ paddingTop: '56.25%' }}>
-                                        {block.url.includes('youtube.com') || block.url.includes('youtu.be') ? (
-                                            <iframe className="absolute top-0 left-0 w-full h-full" src={`https://www.youtube.com/embed/${block.url.split('v=')[1]?.split('&')[0] || block.url.split('youtu.be/')[1]}`} title="Video" frameBorder="0" allowFullScreen></iframe>
-                                        ) : (
-                                            <video controls className="absolute top-0 left-0 w-full h-full"><source src={block.url} />Not supported.</video>
-                                        )}
-                                    </div>
-                                )}
+                                {block.type === 'video_info' && block.url && (() => {
+                                    const isTikTok = block.url.includes('tiktok.com');
+                                    
+                                    if (isTikTok) {
+                                        const getTikTokId = (url) => {
+                                            const matches = url.match(/\/video\/(\d+)/);
+                                            return matches ? matches[1] : null;
+                                        };
+                                        const videoId = getTikTokId(block.url);
+
+                                        return (
+                                            <div className="flex flex-col items-center my-8 p-5 bg-gray-50/30 rounded-3xl border border-gray-100">
+                                                <div className="w-full max-w-[325px] flex justify-center">
+                                                    {videoId ? (
+                                                        <blockquote 
+                                                            className="tiktok-embed" 
+                                                            cite={block.url} 
+                                                            data-video-id={videoId} 
+                                                            style={{ maxWidth: '605px', minWidth: '325px' }}
+                                                        >
+                                                            <section>
+                                                                <a target="_blank" title="Check on TikTok" href={block.url}>TikTok Video</a>
+                                                            </section>
+                                                        </blockquote>
+                                                    ) : (
+                                                       <div className="w-full h-80 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 font-bold uppercase text-[10px]">
+                                                           Invalid TikTok URL
+                                                       </div>
+                                                    )}
+                                                </div>
+                                                <script async src="https://www.tiktok.com/embed.js"></script>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="relative w-full overflow-hidden rounded-2xl shadow-xl shadow-gray-200 border border-gray-100 my-8 bg-black" style={{ paddingTop: '56.25%' }}>
+                                            {block.url.includes('youtube.com') || block.url.includes('youtu.be') ? (
+                                                <iframe className="absolute top-0 left-0 w-full h-full" src={`https://www.youtube.com/embed/${block.url.split('v=')[1]?.split('&')[0] || block.url.split('youtu.be/')[1]}`} title="Video" frameBorder="0" allowFullScreen></iframe>
+                                            ) : (
+                                                <video controls className="absolute top-0 left-0 w-full h-full"><source src={block.url} />Not supported.</video>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* --- Question Blocks --- */}
                                 {!block.type.includes('info') && (

@@ -19,34 +19,63 @@ class AuthController extends Controller
         ]);
 
         $identifier = trim($request->identifier);
-        $securityKey = trim($request->security_key);
+        $securityKey = $request->security_key;
 
-        // 1. STUDENT LOGIN: Must use Admission Number and Access Key
-        $student = User::where('role', 'student')
-                       ->where('admission_number', $identifier)
-                       ->where('access_key', $securityKey)
-                       ->first();
+        // Find user by either admission number or email
+        $user = User::where('admission_number', $identifier)
+                    ->orWhere('email', $identifier)
+                    ->first();
 
-        if ($student) {
-            $token = $student->createToken('lms-react-app')->plainTextToken;
-            $student->load(['curriculum', 'academicLevel', 'subjects', 'targetCareer.pathway']);
-            return response()->json(['user' => $student, 'token' => $token]);
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'identifier' => ['The provided credentials do not match our records.'],
+            ]);
         }
 
-        // 2. STAFF/ADMIN/DEVELOPER LOGIN: Must use Email and Password
-        $staff = User::where('role', '!=', 'student')
-                     ->where('email', $identifier)
-                     ->first();
+        $authenticated = false;
 
-        if ($staff && Hash::check($securityKey, $staff->password)) {
-            $token = $staff->createToken('lms-react-app')->plainTextToken;
-            return response()->json(['user' => $staff, 'token' => $token]);
+        if ($user->role === 'student') {
+            // Students can use access_key (plain) OR password (hashed)
+            if ($user->access_key === $securityKey || Hash::check($securityKey, $user->password)) {
+                $authenticated = true;
+            }
+        } else {
+            // Staff must use password (hashed)
+            if (Hash::check($securityKey, $user->password)) {
+                $authenticated = true;
+            }
         }
 
-        // If no match is found, throw a validation error
-        throw ValidationException::withMessages([
-            'identifier' => ['The provided credentials do not match our records.'],
-        ]);
+        if (!$authenticated) {
+            throw ValidationException::withMessages([
+                'identifier' => ['The provided credentials do not match our records.'],
+            ]);
+        }
+
+        $token = $user->createToken('lms-react-app')->plainTextToken;
+
+        if ($user->role === 'student') {
+            $user->load(['curriculum', 'academicLevel', 'subjects', 'targetCareer.pathway']);
+            
+            // Calculate real student progress
+            $user->subjects->map(function ($subject) use ($user) {
+                $totalCount = \App\Models\Lesson::whereHas('subUnit.unit', function($q) use ($subject) {
+                    $q->where('subject_id', $subject->id);
+                })->where('is_published', true)->count();
+
+                $completedCount = $user->completedLessons()
+                    ->whereHas('subUnit.unit', function($q) use ($subject) {
+                        $q->where('subject_id', $subject->id);
+                    })->count();
+
+                $subject->progress = $totalCount > 0 ? round(($completedCount / $totalCount) * 100) : 0;
+                return $subject;
+            });
+        } else {
+            $user->load(['taughtSubjects']);
+        }
+
+        return response()->json(['user' => $user, 'token' => $token]);
     }
 
     public function logout(Request $request)
@@ -57,7 +86,24 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user()->load(['curriculum', 'academicLevel', 'subjects', 'targetCareer.pathway']);
+        $user = $request->user()->load(['curriculum', 'academicLevel', 'subjects', 'taughtSubjects', 'targetCareer.pathway']);
+        
+        if ($user->role === 'student') {
+            $user->subjects->map(function ($subject) use ($user) {
+                $totalCount = \App\Models\Lesson::whereHas('subUnit.unit', function($q) use ($subject) {
+                    $q->where('subject_id', $subject->id);
+                })->where('is_published', true)->count();
+
+                $completedCount = $user->completedLessons()
+                    ->whereHas('subUnit.unit', function($q) use ($subject) {
+                        $q->where('subject_id', $subject->id);
+                    })->count();
+
+                $subject->progress = $totalCount > 0 ? round(($completedCount / $totalCount) * 100) : 0;
+                return $subject;
+            });
+        }
+
         return response()->json($user);
     }
 }

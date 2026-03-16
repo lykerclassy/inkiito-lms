@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../contexts/NotificationContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function AdminAssignments() {
     const navigate = useNavigate();
+    const { user: currentUser } = useContext(AuthContext);
     const { showNotification, askConfirmation } = useNotification();
 
     // Data State
@@ -43,15 +45,22 @@ export default function AdminAssignments() {
     const fetchData = async () => {
         try {
             const [assignmentsRes, subjectsRes] = await Promise.all([
-                api.get('/assignments'),
-                api.get('/subjects')
+                api.get('assignments'),
+                api.get('subjects')
             ]);
 
-            setAssignments(assignmentsRes.data);
-            setSubjects(subjectsRes.data);
+            let filteredSubjects = subjectsRes.data;
+            if (currentUser?.role === 'teacher') {
+                filteredSubjects = filteredSubjects.filter(sub =>
+                    currentUser.taught_subjects?.some(ts => ts.id === sub.id)
+                );
+            }
 
-            if (subjectsRes.data.length > 0 && !formData.subject_id) {
-                setFormData(prev => ({ ...prev, subject_id: subjectsRes.data[0].id }));
+            setAssignments(assignmentsRes.data);
+            setSubjects(filteredSubjects);
+
+            if (filteredSubjects.length > 0 && !formData.subject_id) {
+                setFormData(prev => ({ ...prev, subject_id: filteredSubjects[0].id }));
             }
         } catch (err) {
             console.error("Failed to fetch data:", err);
@@ -90,7 +99,7 @@ export default function AdminAssignments() {
         const confirmed = await askConfirmation("Delete this assignment and all submissions permanently?", "Delete assignment?");
         if (!confirmed) return;
         try {
-            await api.delete(`/assignments/${id}`);
+            await api.delete(`assignments/${id}`);
             await fetchData();
             showNotification("Assignment deleted.", "success");
         } catch (err) {
@@ -103,9 +112,9 @@ export default function AdminAssignments() {
         setIsSubmitting(true);
         try {
             if (modalMode === 'create') {
-                await api.post('/assignments', formData);
+                await api.post('assignments', formData);
             } else {
-                await api.put(`/assignments/${editId}`, formData);
+                await api.put(`assignments/${editId}`, formData);
             }
             await fetchData();
             setIsModalOpen(false);
@@ -122,7 +131,7 @@ export default function AdminAssignments() {
         setActiveAssignment(assignment);
         setIsGradingOpen(true);
         try {
-            const res = await api.get(`/assignments/${assignment.id}/submissions`);
+            const res = await api.get(`assignments/${assignment.id}/submissions`);
             setActiveSubmissions(res.data);
 
             // Initialize the controlled grading inputs for each submission
@@ -149,7 +158,7 @@ export default function AdminAssignments() {
         }
 
         try {
-            await api.put(`/submissions/${submissionId}/grade`, {
+            await api.put(`submissions/${submissionId}/grade`, {
                 score: data.score,
                 teacher_feedback: data.teacher_feedback
             });

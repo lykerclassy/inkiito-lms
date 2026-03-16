@@ -35,14 +35,7 @@ class DownloadableController extends Controller
             });
         }
 
-        $resources = $query->latest()->get()->map(function($r) {
-            // If the file_url is a relative path (starting with 'resources/'), 
-            // convert it to a full URL using Laravel's asset system.
-            if (!filter_var($r->file_url, FILTER_VALIDATE_URL)) {
-                $r->file_url = asset('storage/' . $r->file_url);
-            }
-            return $r;
-        });
+        $resources = $query->latest()->get();
 
         $subjects = Subject::orderBy('name')->get();
 
@@ -63,12 +56,7 @@ class DownloadableController extends Controller
             $query->where('category', $request->category);
         }
 
-        $resources = $query->latest()->get()->map(function($r) {
-            if (!filter_var($r->file_url, FILTER_VALIDATE_URL)) {
-                $r->file_url = asset('storage/' . $r->file_url);
-            }
-            return $r;
-        });
+        $resources = $query->latest()->get();
 
         return response()->json([
             'resources' => $resources
@@ -91,6 +79,10 @@ class DownloadableController extends Controller
             'file' => 'nullable|file|max:20480',
             'external_url' => 'nullable|string|max:1000',
         ]);
+
+        if (!$this->canManageSubject($request->user(), $request->subject_id)) {
+            return response()->json(['message' => 'You are not assigned to this subject.'], 403);
+        }
 
         $fileUrl = $request->external_url;
 
@@ -123,10 +115,14 @@ class DownloadableController extends Controller
     /**
      * Delete resource.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $resource = Downloadable::findOrFail($id);
         
+        if (!$this->canManageSubject($request->user(), $resource->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to delete this resource.'], 403);
+        }
+
         // Cleanup local file if it's not a URL
         if (!filter_var($resource->file_url, FILTER_VALIDATE_URL)) {
             Storage::disk('public')->delete($resource->file_url);
@@ -135,5 +131,21 @@ class DownloadableController extends Controller
         $resource->delete();
 
         return response()->json(['message' => 'Resource deleted.']);
+    }
+
+    /**
+     * Helper to check if a user can manage a subject.
+     */
+    private function canManageSubject($user, $subjectId)
+    {
+        if (in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
+            return true;
+        }
+
+        if ($user->role === 'teacher') {
+            return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
+        }
+
+        return false;
     }
 }

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function CareerManager() {
+    const { user: currentUser } = useContext(AuthContext);
     const [pathways, setPathways] = useState([]);
     const [careers, setCareers] = useState([]);
     const [subjects, setSubjects] = useState([]);
@@ -42,9 +44,9 @@ export default function CareerManager() {
         setIsLoading(true);
         try {
             const [pRes, cRes, sRes] = await Promise.all([
-                api.get('/pathways'),
-                api.get('/careers'),
-                api.get('/subjects')
+                api.get('pathways'),
+                api.get('careers'),
+                api.get('subjects')
             ]);
             setPathways(pRes.data);
             setCareers(cRes.data);
@@ -60,9 +62,9 @@ export default function CareerManager() {
         e.preventDefault();
         try {
             if (isEditing === 'new') {
-                await api.post('/careers', formData);
+                await api.post('careers', formData);
             } else {
-                await api.put(`/careers/${isEditing}`, formData);
+                await api.put(`careers/${isEditing}`, formData);
             }
             setIsEditing(null);
             fetchData();
@@ -76,9 +78,9 @@ export default function CareerManager() {
         e.preventDefault();
         try {
             if (isEditingPathway === 'new') {
-                await api.post('/pathways', pathwayForm);
+                await api.post('pathways', pathwayForm);
             } else {
-                await api.put(`/pathways/${isEditingPathway}`, pathwayForm);
+                await api.put(`pathways/${isEditingPathway}`, pathwayForm);
             }
             setIsEditingPathway(null);
             fetchData();
@@ -92,7 +94,7 @@ export default function CareerManager() {
         const confirmed = await askConfirmation("Delete this career?", "Confirm Action");
         if (!confirmed) return;
         try {
-            await api.delete(`/careers/${id}`);
+            await api.delete(`careers/${id}`);
             fetchData();
             showNotification("Career deleted.", "success");
         } catch (err) {
@@ -104,7 +106,7 @@ export default function CareerManager() {
         const confirmed = await askConfirmation("Delete this pathway? This will fail if it has careers attached.", "Delete Pathway?");
         if (!confirmed) return;
         try {
-            await api.delete(`/pathways/${id}`);
+            await api.delete(`pathways/${id}`);
             fetchData();
             showNotification("Pathway removed.", "success");
         } catch (err) {
@@ -207,7 +209,7 @@ export default function CareerManager() {
                     )}
 
                     <div className="flex items-center gap-3 w-full sm:w-auto">
-                        {!isEditing && !isEditingPathway && (
+                        {!isEditing && !isEditingPathway && currentUser?.role !== 'teacher' && (
                             <Button
                                 className="w-full sm:w-auto py-3.5 sm:py-2 px-6 text-[10px] font-black uppercase tracking-widest bg-school-primary shadow-lg shadow-red-100"
                                 onClick={() => activeTab === 'careers' ? openEdit(null) : openEditPathway(null)}
@@ -369,14 +371,16 @@ export default function CareerManager() {
                                 <span className={`px-3 py-1 bg-${career.pathway.color_code}-50 text-${career.pathway.color_code}-600 rounded-full text-xs font-semibold`}>
                                     {career.pathway.name}
                                 </span>
-                                <div className="flex gap-2">
-                                    <button onClick={() => openEdit(career)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                                    </button>
-                                    <button onClick={() => handleDelete(career.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                </div>
+                                {currentUser?.role !== 'teacher' && (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => openEdit(career)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                        </button>
+                                        <button onClick={() => handleDelete(career.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <h3 className="text-sm font-semibold text-gray-900 mb-2">{career.name}</h3>
                             <div className="space-y-4">
@@ -440,14 +444,16 @@ export default function CareerManager() {
                             <Card key={p.id} className={`border-l-8 border-${p.color_code}-500 hover:shadow-md transition-shadow`}>
                                 <div className="flex justify-between items-start mb-4">
                                     <h3 className="text-sm font-semibold text-gray-900">{p.name}</h3>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => openEditPathway(p)} className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                                        </button>
-                                        <button onClick={() => handleDeletePathway(p.id)} className="p-2 bg-gray-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
-                                    </div>
+                                    {currentUser?.role !== 'teacher' && (
+                                        <div className="flex gap-2">
+                                            <button onClick={() => openEditPathway(p)} className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                            </button>
+                                            <button onClick={() => handleDeletePathway(p.id)} className="p-2 bg-gray-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <p className="text-xs text-gray-500 font-medium line-clamp-3 mb-4">{p.description}</p>
                                 <div className="flex items-center gap-2">

@@ -36,8 +36,8 @@ class ScienceLabController extends Controller
             'science_lab_id' => 'required|exists:science_labs,id',
             'curriculum_id' => 'nullable|exists:curriculums,id',
             'title' => 'required|string',
-            'slug' => 'nullable|string', // Changed to nullable
-            'description' => 'nullable|string', // Added description
+            'slug' => 'nullable|string', 
+            'description' => 'nullable|string',
             'level' => 'required|string',
             'duration' => 'required|string',
             'simulation_type' => 'nullable|string',
@@ -50,11 +50,16 @@ class ScienceLabController extends Controller
             'steps' => 'array',
         ]);
 
+        $lab = ScienceLab::findOrFail($validated['science_lab_id']);
+        if (!$this->canManageLab($request->user(), $lab)) {
+            return response()->json(['message' => 'You do not have permission to manage experiments in this lab.'], 403);
+        }
+
         $experiment = Experiment::create([
             'science_lab_id' => $validated['science_lab_id'],
             'curriculum_id' => $validated['curriculum_id'] ?? null,
             'title' => $validated['title'],
-            'slug' => $validated['slug'] ?? Str::slug($validated['title']), // Use Str::slug if not provided
+            'slug' => $validated['slug'] ?? Str::slug($validated['title']),
             'description' => $validated['description'] ?? null,
             'level' => $validated['level'],
             'duration' => $validated['duration'],
@@ -83,7 +88,12 @@ class ScienceLabController extends Controller
 
     public function updateExperiment(Request $request, $id)
     {
-        $experiment = Experiment::findOrFail($id);
+        $experiment = Experiment::with('scienceLab')->findOrFail($id);
+        
+        if (!$this->canManageLab($request->user(), $experiment->scienceLab)) {
+            return response()->json(['message' => 'You do not have permission to edit experiments in this lab.'], 403);
+        }
+
         $validated = $request->validate([
             'title' => 'string',
             'level' => 'string',
@@ -117,16 +127,26 @@ class ScienceLabController extends Controller
         return $experiment->load('steps', 'curriculum');
     }
 
-    public function destroyExperiment($id)
+    public function destroyExperiment(Request $request, $id)
     {
-        $experiment = Experiment::findOrFail($id);
+        $experiment = Experiment::with('scienceLab')->findOrFail($id);
+        
+        if (!$this->canManageLab($request->user(), $experiment->scienceLab)) {
+            return response()->json(['message' => 'You do not have permission to delete experiments in this lab.'], 403);
+        }
+
         $experiment->delete();
         return response()->json(['message' => 'Experiment deleted successfully']);
     }
 
-    public function toggleLabStatus($id)
+    public function toggleLabStatus(Request $request, $id)
     {
         $lab = ScienceLab::findOrFail($id);
+
+        if (!$this->canManageLab($request->user(), $lab)) {
+            return response()->json(['message' => 'You do not have permission to toggle this lab status.'], 403);
+        }
+
         $lab->is_active = !$lab->is_active;
         $lab->save();
         return $lab;
@@ -134,6 +154,12 @@ class ScienceLabController extends Controller
 
     public function assignCoordinator(Request $request, $id)
     {
+        // COORDINATOR assignment restricted to Management
+        $user = $request->user();
+        if (!in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
         $validated = $request->validate([
             'coordinator_id' => 'nullable|exists:users,id'
         ]);
@@ -207,5 +233,30 @@ class ScienceLabController extends Controller
         ]);
 
         return response()->json(['message' => 'Answer submitted successfully', 'question' => $question]);
+    }
+
+    /**
+     * Helper to check if a user can manage a Science Lab.
+     */
+    private function canManageLab($user, $lab)
+    {
+        if (in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
+            return true;
+        }
+
+        if ($user->role === 'teacher') {
+            // Check if teacher is assigned to a subject that matches the lab slug/name
+            $taughtSubjectNames = $user->taughtSubjects()->pluck('name')->toArray();
+            $taughtSubjectNames = array_map('strtolower', $taughtSubjectNames);
+            
+            $labSlug = strtolower($lab->slug);
+            foreach ($taughtSubjectNames as $name) {
+                if (str_contains($name, $labSlug) || str_contains($labSlug, $name)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

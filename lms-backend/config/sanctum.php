@@ -17,7 +17,7 @@ return [
 
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1,inkiitomanohseniorschool.co.ke,www.inkiitomanohseniorschool.co.ke,backend.inkiitomanohseniorschool.co.ke',
+        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1,inkiitomanohseniorschool.co.ke,www.inkiitomanohseniorschool.co.ke,backend.inkiitomanohseniorschool.co.ke,lms.inkiitomanohseniorschool.co.ke',
         Sanctum::currentApplicationUrlWithPort()
     ))),
 
@@ -46,7 +46,7 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => 120,
 
     /*
     |--------------------------------------------------------------------------

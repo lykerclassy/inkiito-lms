@@ -22,7 +22,7 @@ export default function ExperimentView() {
         return (
             <div className="max-w-4xl mx-auto p-5 bg-gray-50 text-gray-400 font-semibold rounded-xl border border-gray-100 mt-20 text-center animate-in fade-in duration-700">
                 <p>Session expired. Please go back and select an experiment.</p>
-                <Button onClick={() => navigate('/student/science-lab')} className="mt-8 bg-school-primary px-5 py-4">Back to Science Lab</Button>
+                <Button onClick={() => navigate(location.pathname.startsWith('/admin') ? '/admin/science-labs' : '/student/science-lab')} className="mt-8 bg-school-primary px-5 py-4">Back to Science Lab</Button>
             </div>
         );
     }
@@ -53,7 +53,7 @@ export default function ExperimentView() {
         if (!question.trim()) return;
         setIsSubmittingAsk(true);
         try {
-            await api.post(`/science-labs/${lab.db_id}/ask`, { question });
+            await api.post(`science-labs/${lab.db_id}/ask`, { question });
             setQuestion('');
             setShowAskModal(false);
         } catch (err) {
@@ -61,6 +61,14 @@ export default function ExperimentView() {
         } finally {
             setIsSubmittingAsk(false);
         }
+    };
+
+    const renderRichText = (content) => {
+        if (!content) return null;
+        if (typeof content === 'string' && (content.includes('<') || content.includes('>'))) {
+            return <div className="ql-content inline" dangerouslySetInnerHTML={{ __html: content }} />;
+        }
+        return content;
     };
 
     return (
@@ -72,7 +80,7 @@ export default function ExperimentView() {
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-4">
                     <div className="space-y-6">
                         <button
-                            onClick={() => navigate('/student/science-lab')}
+                            onClick={() => navigate(location.pathname.startsWith('/admin') ? `/admin/science-labs/view/${lab.slug}` : '/student/science-lab')}
                             className="text-xs font-semibold text-gray-400 hover:text-school-primary flex items-center gap-4 uppercase group/back bg-white px-5 py-3 rounded-2xl border border-gray-100 shadow-sm shadow-gray-50 transition-all"
                         >
                             <span className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center group-hover/back:bg-school-primary group-hover/back:text-white transition-all transform group-hover/back:-translate-x-1">&larr;</span>
@@ -158,7 +166,7 @@ export default function ExperimentView() {
                                     <div className="w-9 h-9 rounded-2xl bg-red-50 flex items-center justify-center shrink-0">
                                         <svg className="w-8 h-8 text-school-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                                     </div>
-                                    <p className="text-gray-600 font-bold leading-loose text-sm tracking-wide">{experiment.requirements}</p>
+                                    <p className="text-gray-600 font-bold leading-loose text-sm tracking-wide">{renderRichText(experiment.requirements)}</p>
                                 </div>
                             </Card>
                         </div>
@@ -175,7 +183,7 @@ export default function ExperimentView() {
                                 {experiment.steps.map((step, idx) => (
                                     <Card key={idx} className="p-4 bg-white border-none shadow-sm shadow-gray-100/50 rounded-xl flex gap-6 border border-gray-100 group/step hover:-translate-y-2 transition-all duration-500">
                                         <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-school-secondary flex items-center justify-center font-semibold text-xl shrink-0 shadow-lg shadow-indigo-100 group-hover/step:rotate-12 transition-transform">{idx + 1}</div>
-                                        <p className="text-xs font-bold text-gray-500 leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors">{step.instruction}</p>
+                                        <div className="text-xs font-bold text-gray-500 leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors">{renderRichText(step.instruction)}</div>
                                     </Card>
                                 ))}
                             </div>
@@ -195,7 +203,7 @@ export default function ExperimentView() {
                                     <div className="space-y-4">
                                         <label className="text-xs font-semibold text-gray-500 text-amber-600 ml-6">Observations</label>
                                         <div className="bg-white p-4 rounded-xl shadow-sm shadow-amber-100/20 border-l-8 border-school-accent text-gray-600 font-bold leading-relaxed text-sm">
-                                            {experiment.observations}
+                                            {renderRichText(experiment.observations)}
                                         </div>
                                     </div>
                                 )}
@@ -203,7 +211,7 @@ export default function ExperimentView() {
                                     <div className="space-y-4">
                                         <label className="text-xs font-semibold text-gray-500 text-emerald-600 ml-6">Explanation</label>
                                         <div className="bg-white p-4 rounded-xl shadow-sm shadow-emerald-100/20 border-l-8 border-emerald-500 text-gray-600 font-bold leading-relaxed text-sm">
-                                            {experiment.explanations}
+                                            {renderRichText(experiment.explanations)}
                                         </div>
                                     </div>
                                 )}
@@ -212,7 +220,7 @@ export default function ExperimentView() {
                                         <label className="text-xs font-semibold text-gray-500 text-indigo-600 ml-6">Conclusion</label>
                                         <div className="bg-indigo-900 p-5 rounded-xl shadow-sm shadow-indigo-200 text-white font-semibold uppercase tracking-tight text-xl leading-snug relative overflow-hidden group/conclusion">
                                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                                            <div className="relative z-10">{experiment.conclusion}</div>
+                                            <div className="relative z-10">{renderRichText(experiment.conclusion)}</div>
                                             <svg className="absolute bottom-8 right-8 w-9 h-9 text-white/10 group-hover/conclusion:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" /></svg>
                                         </div>
                                     </div>
@@ -315,7 +323,7 @@ export default function ExperimentView() {
                                             </div>
                                             <p className="text-base font-bold text-gray-900">Completed!</p>
                                             <Button
-                                                onClick={() => navigate('/student/science-lab')}
+                                                onClick={() => navigate(location.pathname.startsWith('/admin') ? `/admin/science-labs/view/${lab.slug}` : '/student/science-lab')}
                                                 className="w-full py-6 bg-gray-900 text-white font-semibold uppercase text-[10px] rounded-2xl hover:bg-black transition-all"
                                             >
                                                 FINISH & RETURN

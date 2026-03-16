@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
+
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 
@@ -25,11 +26,11 @@ export default function Settings() {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const response = await api.get('/settings');
+                const response = await api.get('settings');
                 // Backend returns a flat key-value object of settings
                 setSettings(prev => ({ ...prev, ...response.data }));
                 if (response.data.school_logo) {
-                    setLogoPreview(response.data.school_logo);
+                    setLogoPreview(getMediaUrl(response.data.school_logo));
                 }
             } catch (err) {
                 console.error("Failed to load settings");
@@ -69,12 +70,11 @@ export default function Settings() {
         setIsSaving(true);
         try {
             const formData = new FormData();
-            formData.append('_method', 'PUT'); // Spoof PUT since we send multipart
 
-            // Append standard text settings
+            // Append standard text settings (exclude reserved/dangerous keys)
+            const EXCLUDED_KEYS = ['school_logo', '_method', '_token'];
             Object.keys(settings).forEach(key => {
-                // Don't append if it's identical to the logo URL or irrelevant
-                if (key !== 'school_logo') {
+                if (!EXCLUDED_KEYS.includes(key)) {
                     formData.append(key, settings[key]);
                 }
             });
@@ -84,16 +84,19 @@ export default function Settings() {
                 formData.append('school_logo', logoFile);
             }
 
-            await api.post('/settings', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            // IMPORTANT: Do NOT set 'Content-Type' manually when sending FormData.
+            // The browser must set it automatically so it includes the multipart boundary.
+            // Deleting the global default header forces Axios to allow the browser to handle it.
+            await api.post('settings', formData);
 
             alert('Settings updated successfully!');
             // Reload to reflect potential topbar name/logo changes broadly
             window.location.reload();
         } catch (err) {
-            alert('Failed to save settings');
-            console.error(err);
+            const status = err.response?.status;
+            const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+            console.error('Settings save error:', { status, serverMsg, full: err.response?.data });
+            alert(`Failed to save settings. Error ${status}: ${serverMsg}`);
         } finally {
             setIsSaving(false);
         }

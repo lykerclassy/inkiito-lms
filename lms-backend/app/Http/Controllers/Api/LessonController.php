@@ -28,6 +28,11 @@ class LessonController extends Controller
             'order' => 'required|integer'
         ]);
 
+        $subUnit = \App\Models\SubUnit::with('unit')->findOrFail($request->sub_unit_id);
+        if (!$this->canManageSubject($request->user(), $subUnit->unit->subject_id)) {
+            return response()->json(['message' => 'You are not assigned to this subject.'], 403);
+        }
+
         $lesson = Lesson::create([
             'sub_unit_id' => $request->sub_unit_id,
             'title' => $request->title,
@@ -41,7 +46,12 @@ class LessonController extends Controller
     // --- NEW: Update Lesson title or publish status ---
     public function update(Request $request, $id)
     {
-        $lesson = Lesson::findOrFail($id);
+        $lesson = Lesson::with('subUnit.unit')->findOrFail($id);
+
+        if (!$this->canManageSubject($request->user(), $lesson->subUnit->unit->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to manage this lesson.'], 403);
+        }
+
         $lesson->update($request->only(['title', 'order', 'is_published']));
         
         return response()->json(['message' => 'Lesson details updated', 'lesson' => $lesson]);
@@ -51,7 +61,12 @@ class LessonController extends Controller
     public function updateBlocks(Request $request, $id)
     {
         $request->validate(['blocks' => 'required|array']);
-        $lesson = Lesson::findOrFail($id);
+        $lesson = Lesson::with('subUnit.unit')->findOrFail($id);
+
+        if (!$this->canManageSubject($request->user(), $lesson->subUnit->unit->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to manage this lesson content.'], 403);
+        }
+
         DB::beginTransaction();
         try {
             LessonBlock::where('lesson_id', $lesson->id)->delete();
@@ -69,5 +84,34 @@ class LessonController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Failed to save lesson blocks.', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Mark a lesson as completed for the authenticated user.
+     */
+    public function complete(Request $request, $id)
+    {
+        $user = $request->user();
+        $user->completedLessons()->syncWithoutDetaching([
+            $id => ['completed_at' => now()]
+        ]);
+        
+        return response()->json(['message' => 'Lesson marked as completed']);
+    }
+
+    /**
+     * Helper to check if a user can manage a subject.
+     */
+    private function canManageSubject($user, $subjectId)
+    {
+        if (in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
+            return true;
+        }
+
+        if ($user->role === 'teacher') {
+            return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
+        }
+
+        return false;
     }
 }

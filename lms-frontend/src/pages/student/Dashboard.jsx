@@ -20,16 +20,27 @@ function StatCard({ icon, value, label, color }) {
 }
 
 export default function Dashboard() {
-    const { user } = useContext(AuthContext);
+    const { user, refreshUser } = useContext(AuthContext);
     const navigate = useNavigate();
     const [stats, setStats] = useState({ recentActivity: null, upcomingDeadlines: [] });
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => { fetchDashboardData(); }, []);
+    useEffect(() => { 
+        fetchDashboardData(); 
+        refreshUser(); 
+
+        // Refetch when tab is focused (Real-time update)
+        const onFocus = () => {
+            fetchDashboardData();
+            refreshUser();
+        };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, []);
 
     const fetchDashboardData = async () => {
         try {
-            const response = await api.get('/dashboard');
+            const response = await api.get('dashboard');
             setStats(response.data);
         } catch (error) {
             console.error('Failed to fetch dashboard data:', error);
@@ -42,7 +53,7 @@ export default function Dashboard() {
         id: s.id,
         name: s.name,
         status: s.pivot?.status || 'active',
-        progress: ((s.id * 23) % 60) + 20
+        progress: s.progress ?? 0
     })) || [];
 
     const totalSubjects = enrolledSubjects.length;

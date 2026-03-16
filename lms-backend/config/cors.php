@@ -25,6 +25,7 @@ return [
         'https://inkiitomanohseniorschool.co.ke',
         'https://www.inkiitomanohseniorschool.co.ke',
         'https://backend.inkiitomanohseniorschool.co.ke',
+        'https://lms.inkiitomanohseniorschool.co.ke',
     ],
 
     'allowed_origins_patterns' => [],

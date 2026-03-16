@@ -13,12 +13,18 @@ class AssignmentController extends Controller
     // TEACHER & ADMIN METHODS
     // ==========================================
 
-    public function index()
+    public function index(Request $request)
     {
-        $assignments = Assignment::with(['subject', 'teacher'])
-            ->withCount('submissions')
-            ->latest()
-            ->get();
+        $user = $request->user();
+        $query = Assignment::with(['subject', 'teacher'])->withCount('submissions');
+
+        // If the user is a teacher, only show assignments for subjects they teach
+        if ($user->role === 'teacher') {
+            $subjectIds = $user->taughtSubjects()->pluck('subjects.id');
+            $query->whereIn('subject_id', $subjectIds);
+        }
+
+        $assignments = $query->latest()->get();
         return response()->json($assignments);
     }
 
@@ -29,6 +35,10 @@ class AssignmentController extends Controller
             'subject_id' => 'required|exists:subjects,id',
             'due_date' => 'required|date',
         ]);
+
+        if (!$this->canManageSubject($request->user(), $request->subject_id)) {
+            return response()->json(['message' => 'You are not assigned to this subject.'], 403);
+        }
 
         $initialContent = json_encode([
             ['id' => uniqid(), 'type' => 'multiple_choice', 'title' => 'Untitled Question', 'options' => ['Option 1'], 'points' => 1]
@@ -51,6 +61,11 @@ class AssignmentController extends Controller
     public function update(Request $request, $id)
     {
         $assignment = Assignment::findOrFail($id);
+        
+        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to manage this assignment.'], 403);
+        }
+
         $assignment->update($request->only(['title', 'subject_id', 'type', 'due_date', 'description']));
         return response()->json(['message' => 'Assignment details updated', 'assignment' => $assignment->load('subject')]);
     }
@@ -59,18 +74,35 @@ class AssignmentController extends Controller
     {
         $request->validate(['blocks' => 'required|array']);
         $assignment = Assignment::findOrFail($id);
+
+        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to manage this assignment.'], 403);
+        }
+
         $assignment->update(['content' => json_encode($request->blocks)]);
         return response()->json(['message' => 'Assignment content blocks saved.']);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        Assignment::findOrFail($id)->delete();
+        $assignment = Assignment::findOrFail($id);
+
+        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to delete this assignment.'], 403);
+        }
+
+        $assignment->delete();
         return response()->json(['message' => 'Assignment deleted']);
     }
 
-    public function getSubmissions($id)
+    public function getSubmissions(Request $request, $id)
     {
+        $assignment = Assignment::findOrFail($id);
+
+        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to view these submissions.'], 403);
+        }
+
         $submissions = AssignmentSubmission::where('assignment_id', $id)->with('student')->get();
             
         $submissions->transform(function ($submission) {
@@ -84,13 +116,34 @@ class AssignmentController extends Controller
     public function gradeSubmission(Request $request, $submissionId)
     {
         $request->validate(['score' => 'required|numeric']);
-        $submission = AssignmentSubmission::findOrFail($submissionId);
+        $submission = AssignmentSubmission::with('assignment')->findOrFail($submissionId);
+
+        if (!$this->canManageSubject($request->user(), $submission->assignment->subject_id)) {
+            return response()->json(['message' => 'You do not have permission to grade this submission.'], 403);
+        }
+
         $submission->update([
             'score' => $request->score,
             'teacher_feedback' => $request->teacher_feedback,
             'status' => 'graded'
         ]);
         return response()->json(['message' => 'Grade and feedback saved successfully', 'submission' => $submission]);
+    }
+
+    /**
+     * Helper to check if a user can manage a subject.
+     */
+    private function canManageSubject($user, $subjectId)
+    {
+        if (in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
+            return true;
+        }
+
+        if ($user->role === 'teacher') {
+            return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
+        }
+
+        return false;
     }
 
     // ==========================================

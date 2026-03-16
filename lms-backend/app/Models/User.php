@@ -89,6 +89,11 @@ class User extends Authenticatable
         return $this->hasMany(QuizResult::class);
     }
 
+    public function quizAttempts()
+    {
+        return $this->hasMany(QuizAttempt::class);
+    }
+
     /**
      * Get the student's assignment submissions.
      */
@@ -105,5 +110,40 @@ class User extends Authenticatable
         return $this->belongsToMany(Vocabulary::class, 'user_vocabularies')
                     ->withPivot(['attempts', 'best_score', 'last_seen_at', 'mastered_at'])
                     ->withTimestamps();
+    }
+
+    /**
+     * Get the lessons completed by the student.
+     */
+    public function completedLessons()
+    {
+        return $this->belongsToMany(Lesson::class, 'lesson_user')
+                    ->withPivot('completed_at')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get the subjects this teacher is assigned to.
+     */
+    public function taughtSubjects()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_teacher')->withTimestamps();
+    }
+
+    /**
+     * Get the student's avatar URL.
+     * Ensures consistent URLs across all environments.
+     */
+    public function getAvatarAttribute($value)
+    {
+        if (!$value) return null;
+        
+        // If it's already a full URL, return it
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            return $value;
+        }
+
+        // Otherwise generate it using current disk
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($value);
     }
 }

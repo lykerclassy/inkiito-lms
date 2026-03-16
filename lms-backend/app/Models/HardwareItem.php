@@ -16,4 +16,14 @@ class HardwareItem extends Model
         'category',
         'is_active'
     ];
+
+    /**
+     * Get the hardware's image URL.
+     */
+    public function getImageUrlAttribute($value)
+    {
+        if (!$value) return null;
+        if (filter_var($value, FILTER_VALIDATE_URL)) return $value;
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($value);
+    }
 }

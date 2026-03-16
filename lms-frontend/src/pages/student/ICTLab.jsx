@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 
 const ICT_MODULES = [
     {
@@ -44,6 +44,38 @@ export default function ICTLab() {
     const [hardwareParts, setHardwareParts] = useState([]);
     const [idGame, setIdGame] = useState({ active: false, currentPart: null, score: 0, feedback: null });
     const [isLoading, setIsLoading] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+
+    const startVoiceIdentify = () => {
+        if (!window.isSecureContext) {
+            alert("Speech Recognition requires a secure connection (HTTPS). Please use HTTPS.");
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Speech Recognition not supported in this browser.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript.toLowerCase();
+            // Find closest match or exact match
+            const spokenPart = hardwareParts.find(p => transcript.includes(p.name.toLowerCase()));
+            if (spokenPart) {
+                handleIdentify(spokenPart.name);
+            } else {
+                setIdGame(prev => ({ ...prev, feedback: { type: 'error', message: `I heard "${transcript}", but that's not it!` } }));
+                setTimeout(() => setIdGame(prev => ({ ...prev, feedback: null })), 1500);
+            }
+        };
+        recognition.start();
+    };
 
     useEffect(() => {
         fetchHardware();
@@ -52,11 +84,11 @@ export default function ICTLab() {
     const fetchHardware = async () => {
         setIsLoading(true);
         try {
-            const res = await api.get('/hardware-items');
+            const res = await api.get('hardware-items');
             // Ensure compatibility with existing img property vs image_url
             const formatted = res.data.map(item => ({
                 ...item,
-                image: item.image_url // alias image_url to image for compatibility
+                image: getMediaUrl(item.image_url) // alias image_url to image with production URL fix
             }));
             setHardwareParts(formatted);
         } catch (err) {
@@ -230,6 +262,13 @@ export default function ICTLab() {
                                                                 <svg className="w-5 h-5 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                                                             </button>
                                                         ))}
+                                                        <button
+                                                            onClick={startVoiceIdentify}
+                                                            className={`col-span-2 p-5 border-2 border-dashed rounded-2xl font-bold flex items-center justify-center gap-4 transition-all ${isListening ? 'border-red-500 bg-red-50 text-red-600 animate-pulse' : 'border-blue-200 text-blue-600 hover:border-blue-600 hover:bg-blue-50'}`}
+                                                        >
+                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-20a3 3 0 013 3v10a3 3 0 01-3 3 3 3 0 01-3-3V3a3 3 0 013-3z" /></svg>
+                                                            {isListening ? 'Listening...' : 'Say it out loud!'}
+                                                        </button>
                                                     </div>
                                                     <button
                                                         onClick={() => setIdGame({ ...idGame, active: false })}

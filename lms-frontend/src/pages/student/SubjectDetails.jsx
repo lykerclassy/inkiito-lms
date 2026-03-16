@@ -15,7 +15,7 @@ export default function SubjectDetails() {
     useEffect(() => {
         const fetchSubjectDetails = async () => {
             try {
-                const response = await api.get(`/subjects/${id}`);
+                const response = await api.get(`subjects/${id}`);
                 setSubject(response.data);
             } catch (err) {
                 console.error("Failed to fetch subject details:", err);
@@ -26,6 +26,11 @@ export default function SubjectDetails() {
         };
 
         fetchSubjectDetails();
+
+        // Real-time synchronization on focus
+        const onFocus = () => fetchSubjectDetails();
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, [id]);
 
     if (isLoading) {
@@ -84,12 +89,12 @@ export default function SubjectDetails() {
                     <div className="w-full md:w-80 bg-black/20 backdrop-blur-3xl p-4 rounded-xl border border-white/10 shadow-inner">
                         <div className="flex justify-between items-end mb-3">
                             <span className="text-xs font-semibold text-indigo-200">Progress</span>
-                            <span className="text-[11px] font-black text-white italic">{((subject.id * 23) % 60) + 20}%</span>
+                            <span className="text-[11px] font-black text-white italic">{subject.progress || 0}%</span>
                         </div>
                         <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-school-primary rounded-full transition-all duration-1000 shadow-sm shadow-red-500/50"
-                                style={{ width: `${((subject.id * 23) % 60) + 20}%` }}
+                                style={{ width: `${subject.progress || 0}%` }}
                             />
                         </div>
                     </div>

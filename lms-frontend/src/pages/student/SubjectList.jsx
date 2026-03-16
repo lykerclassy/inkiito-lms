@@ -1,12 +1,19 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 
 export default function SubjectList() {
-    const { user } = useContext(AuthContext);
+    const { user, refreshUser } = useContext(AuthContext);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        refreshUser();
+        const onFocus = () => refreshUser();
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, []);
 
     const subjects = user?.subjects || [];
 
@@ -53,7 +60,7 @@ export default function SubjectList() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {subjects.map((subject) => {
-                        const progress = ((subject.id * 23) % 60) + 20;
+                        const progress = subject.progress ?? 0;
                         return (
                             <Card
                                 key={subject.id}

@@ -64,55 +64,70 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/dashboard', [\App\Http\Controllers\Api\DashboardController::class, 'index']);
 
-    // --- CURRICULUM MANAGER ---
+    // --- CURRICULUM MANAGER (All Staff can view; All staff can build content for their subjects) ---
     Route::get('/subjects', [SubjectController::class, 'index']);
     Route::get('/subjects/{id}', [SubjectController::class, 'show']);
-    Route::post('/subjects', [SubjectController::class, 'store']);
-    Route::post('/units', [SubjectController::class, 'storeUnit']);
-    Route::put('/units/{id}', [SubjectController::class, 'updateUnit']);
-    Route::post('/subunits', [SubjectController::class, 'storeSubUnit']);
-    Route::put('/subunits/{id}', [SubjectController::class, 'updateSubUnit']);
+    Route::get('/academic-levels', [SubjectController::class, 'academicLevels']);
+    Route::get('/staff-list', [UserController::class, 'getStaff']);
 
-    // --- LESSON BUILDER ---
+    // Subject/Unit CREATION restricted to management (they define the structure)
+    Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer,principal,deputy_principal,dos')->group(function () {
+        Route::post('/subjects', [SubjectController::class, 'store']);
+        Route::post('/units', [SubjectController::class, 'storeUnit']);
+        Route::put('/units/{id}', [SubjectController::class, 'updateUnit']);
+        Route::post('/subunits', [SubjectController::class, 'storeSubUnit']);
+        Route::put('/subunits/{id}', [SubjectController::class, 'updateSubUnit']);
+        
+        // NEW: Teacher Assignments
+        Route::put('/academic-levels/{id}/teacher', [SubjectController::class, 'assignClassTeacher']);
+        Route::put('/subjects/{id}/teachers', [SubjectController::class, 'assignSubjectTeachers']);
+    });
+
+    // --- LESSON BUILDER (All Staff — Teachers fill in lesson content) ---
     Route::get('/lessons/{id}', [LessonController::class, 'show']);
     Route::post('/lessons', [LessonController::class, 'store']);
     Route::put('/lessons/{id}', [LessonController::class, 'update']);
-    Route::put('/lessons/{id}/blocks', [LessonController::class, 'updateBlocks']);
+    Route::post('/lessons/{id}/blocks', [LessonController::class, 'updateBlocks']);
+    Route::post('/lessons/{id}/complete', [LessonController::class, 'complete']);
 
-    // --- USER MANAGEMENT ---
-    Route::get('/users', [UserController::class, 'index']);
-    Route::post('/users', [UserController::class, 'store']);
-    Route::put('/users/{id}', [UserController::class, 'update']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy']);
-    Route::post('/users/import-csv', [UserController::class, 'importCSV']);
-    Route::put('/users/{id}/enrollments', [UserController::class, 'updateEnrollments']);
-    Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    // --- USER MANAGEMENT (Management Only) ---
+    Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer,principal,deputy_principal,dos')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::put('/users/{id}', [UserController::class, 'update']);
+        Route::delete('/users/{id}', [UserController::class, 'destroy']);
+        Route::post('/users/import-csv', [UserController::class, 'importCSV']);
+        Route::put('/users/{id}/enrollments', [UserController::class, 'updateEnrollments']);
+    });
+    Route::post('/user/profile', [UserController::class, 'updateProfile']); // Own profile — all users
 
     // --- QUIZZES ---
     Route::post('/quizzes/submit', [QuizController::class, 'submitAnswer']);
     Route::get('/student/grades', [QuizController::class, 'myGrades']);
     
-    // --- ASSIGNMENTS & SUBMISSIONS (UPGRADED) ---
-    // Teacher Routes
+    // --- ASSIGNMENTS & SUBMISSIONS (All Staff can create/grade) ---
     Route::get('/assignments', [AssignmentController::class, 'index']);
     Route::post('/assignments', [AssignmentController::class, 'store']);
     Route::put('/assignments/{id}', [AssignmentController::class, 'update']);
-    Route::put('/assignments/{id}/update-content', [AssignmentController::class, 'updateContent']); // The new block editor save
+    Route::post('/assignments/{id}/update-content', [AssignmentController::class, 'updateContent']);
     Route::delete('/assignments/{id}', [AssignmentController::class, 'destroy']);
     Route::get('/assignments/{id}/submissions', [AssignmentController::class, 'getSubmissions']);
-    Route::put('/submissions/{id}/grade', [AssignmentController::class, 'gradeSubmission']); // Handles Score & Feedback
+    Route::put('/submissions/{id}/grade', [AssignmentController::class, 'gradeSubmission']);
     
     // Student Routes
     Route::get('/student/assignments', [AssignmentController::class, 'studentAssignments']);
-    Route::post('/assignments/{id}/submit', [AssignmentController::class, 'submitWork']); // Submits JSON answers
+    Route::post('/assignments/{id}/submit', [AssignmentController::class, 'submitWork']);
 
-    // --- SETTINGS (Protected update) ---
-    Route::put('/settings', [SettingController::class, 'update']);
+    // --- SETTINGS (Admins & Developer Only) ---
+    Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer')->group(function () {
+        Route::get('/settings/curriculums', [SettingController::class, 'getCurriculums']);
+        Route::post('/settings', [SettingController::class, 'update']);
+    });
 
     // --- NOTIFICATIONS ---
     Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::put('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
-    Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
 
     // --- TYPING TRACKER ---
     Route::get('/typing-scores', [TypingScoreController::class, 'index']);
@@ -123,13 +138,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/ai/vocabulary/generate', [AIController::class, 'generateVocabulary']);
     Route::post('/ai/vocabulary/mark-learned', [AIController::class, 'markLearned']);
     
-    // Admin Vocabulary Management
+    // --- STANDALONE QUIZZES ---
+    // Staff/Admin Management
+    Route::get('/admin/quizzes', [\App\Http\Controllers\Api\QuizManagementController::class, 'index']);
+    Route::post('/admin/quizzes', [\App\Http\Controllers\Api\QuizManagementController::class, 'store']);
+    Route::get('/admin/quizzes/{id}', [\App\Http\Controllers\Api\QuizManagementController::class, 'show']);
+    Route::put('/admin/quizzes/{id}', [\App\Http\Controllers\Api\QuizManagementController::class, 'update']);
+    Route::delete('/admin/quizzes/{id}', [\App\Http\Controllers\Api\QuizManagementController::class, 'destroy']);
+    Route::post('/admin/quizzes/{id}/questions', [\App\Http\Controllers\Api\QuizManagementController::class, 'addQuestion']);
+    Route::put('/admin/quiz-questions/{id}', [\App\Http\Controllers\Api\QuizManagementController::class, 'updateQuestion']);
+    Route::delete('/admin/quiz-questions/{id}', [\App\Http\Controllers\Api\QuizManagementController::class, 'deleteQuestion']);
+
+    // Student Routes
+    Route::get('/student/quizzes', [\App\Http\Controllers\Api\StudentQuizController::class, 'index']);
+    Route::get('/student/quizzes/{id}', [\App\Http\Controllers\Api\StudentQuizController::class, 'show']);
+    Route::post('/student/quizzes/{id}/submit', [\App\Http\Controllers\Api\StudentQuizController::class, 'submit']);
+
+    // Vocabulary Management (All Staff — Teachers can also manage vocab content)
     Route::get('/admin/vocabularies', [AIController::class, 'index']);
     Route::post('/admin/vocabularies', [AIController::class, 'store']);
     Route::get('/admin/ai-test', [AIController::class, 'testGemini']);
+    Route::post('/admin/ai-replenish', [AIController::class, 'replenishPool']);
     Route::delete('/admin/vocabularies/{id}', [AIController::class, 'destroy']);
 
-    // --- HARDWARE ITEMS (ICT LAB) ---
+    // --- HARDWARE ITEMS (ICT LAB) — All Staff can view; management can edit ---
     Route::get('/hardware-items', [HardwareItemController::class, 'index']);
     Route::get('/admin/hardware-items', [HardwareItemController::class, 'adminIndex']);
     Route::post('/hardware-items', [HardwareItemController::class, 'store']);
@@ -137,7 +169,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/hardware-items/{id}', [HardwareItemController::class, 'update']);
     Route::delete('/hardware-items/{id}', [HardwareItemController::class, 'destroy']);
     
-    // --- SCIENCE LABS ---
+    // --- SCIENCE LABS (All Staff can create & manage experiments) ---
     Route::get('/science-labs', [ScienceLabController::class, 'index']);
     Route::get('/science-labs/curriculums', [ScienceLabController::class, 'getCurriculums']);
     Route::get('/science-labs/{id}', [ScienceLabController::class, 'show']);
@@ -152,7 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/lab-questions', [ScienceLabController::class, 'getQuestions']);
     Route::post('/lab-questions/{id}/answer', [ScienceLabController::class, 'answerQuestion']);
 
-    // --- CAREERS & PATHWAYS ---
+    // --- CAREERS & PATHWAYS (All Staff — Teachers guide students) ---
     Route::get('/pathways', [\App\Http\Controllers\Api\CareerController::class, 'getPathways']);
     Route::post('/pathways', [\App\Http\Controllers\Api\CareerController::class, 'storePathway']);
     Route::put('/pathways/{id}', [\App\Http\Controllers\Api\CareerController::class, 'updatePathway']);
@@ -164,11 +196,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/careers/recommend', [\App\Http\Controllers\Api\CareerController::class, 'getRecommendedCareers']);
     Route::post('/careers/set-goal', [\App\Http\Controllers\Api\CareerController::class, 'setCareerGoal']);
 
-    // --- GRADES & REPORTS ---
+    // --- GRADES & REPORTS (All Staff) ---
     Route::get('/admin/gradebook', [\App\Http\Controllers\Api\GradeController::class, 'index']);
     Route::get('/admin/gradebook/{userId}', [\App\Http\Controllers\Api\GradeController::class, 'show']);
 
-    // --- DOWNLOADABLE RESOURCES ---
+    // --- DOWNLOADABLE RESOURCES (All Staff can manage resources) ---
     Route::get('/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'index']);
     Route::get('/admin/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'adminIndex']);
     Route::post('/admin/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'store']);

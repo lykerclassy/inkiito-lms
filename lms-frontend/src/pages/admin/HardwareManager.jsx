@@ -1,15 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function HardwareManager() {
+    const { user: currentUser } = useContext(AuthContext);
     const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const { showNotification, askConfirmation } = useNotification();
     const [isEditing, setIsEditing] = useState(null); // ID of item being edited or 'new'
     const [formData, setFormData] = useState({ name: '', description: '', image_url: '', category: 'Hardware', is_active: true });
+
+    const canManageHub = (user) => {
+        if (!user) return false;
+        if (['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(user.role)) return true;
+
+        // Teachers who teach Computer Studies or ICT or Keyboarding
+        const subjects = user.taught_subjects || user.taughtSubjects || [];
+        return subjects.some(s => {
+            const name = (s.name || s).toLowerCase();
+            return name.includes('computer') || name.includes('ict') || name.includes('keyboarding');
+        });
+    };
 
     useEffect(() => {
         fetchItems();
@@ -18,7 +32,7 @@ export default function HardwareManager() {
     const fetchItems = async () => {
         setIsLoading(true);
         try {
-            const res = await api.get('/admin/hardware-items');
+            const res = await api.get('admin/hardware-items');
             setItems(res.data);
         } catch (err) {
             console.error("Failed to fetch hardware items", err);
@@ -31,9 +45,9 @@ export default function HardwareManager() {
         e.preventDefault();
         try {
             if (isEditing === 'new') {
-                await api.post('/hardware-items', formData);
+                await api.post('hardware-items', formData);
             } else {
-                await api.put(`/hardware-items/${isEditing}`, formData);
+                await api.put(`hardware-items/${isEditing}`, formData);
             }
             setIsEditing(null);
             fetchItems();
@@ -48,7 +62,7 @@ export default function HardwareManager() {
         const confirmed = await askConfirmation("Are you sure you want to delete this hardware item?", "Delete Asset?");
         if (!confirmed) return;
         try {
-            await api.delete(`/hardware-items/${id}`);
+            await api.delete(`hardware-items/${id}`);
             fetchItems();
             showNotification("Item removed.", "success");
         } catch (err) {
@@ -73,7 +87,7 @@ export default function HardwareManager() {
                     <h1 className="text-base font-bold text-gray-900">Lab Hardware Manager</h1>
                     <p className="text-gray-500">Add or edit equipment for the ICT Innovation Lab.</p>
                 </div>
-                {!isEditing && (
+                {!isEditing && canManageHub(currentUser) && (
                     <Button onClick={() => openEdit(null)} className="flex items-center gap-2 w-full sm:w-auto justify-center">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
                         Add New Hardware
@@ -168,20 +182,22 @@ export default function HardwareManager() {
                                     <h3 className="text-sm font-semibold text-gray-900">{item.name}</h3>
                                     <p className="text-xs text-gray-500 line-clamp-2 mt-1">{item.description}</p>
                                 </div>
-                                <div className="flex gap-2 border-t border-gray-50 pt-4 mt-auto">
-                                    <button
-                                        onClick={() => openEdit(item)}
-                                        className="flex-1 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-lg transition-all"
-                                    >
-                                        Edit Details
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(item.id)}
-                                        className="p-2 text-red-400 hover:text-red-600 bg-red-50 rounded-lg"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                </div>
+                                {canManageHub(currentUser) && (
+                                    <div className="flex gap-2 border-t border-gray-50 pt-4 mt-auto">
+                                        <button
+                                            onClick={() => openEdit(item)}
+                                            className="flex-1 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-lg transition-all"
+                                        >
+                                            Edit Details
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(item.id)}
+                                            className="p-2 text-red-400 hover:text-red-600 bg-red-50 rounded-lg"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </Card>
                     ))}

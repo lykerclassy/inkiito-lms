@@ -17,7 +17,7 @@ export default function Topbar({ toggleSidebar }) {
 
     const fetchNotifications = async () => {
         try {
-            const res = await api.get('/notifications');
+            const res = await api.get('notifications');
             setNotifications(res.data.notifications || []);
             setUnreadCount(res.data.unread_count || 0);
         } catch { }
@@ -25,7 +25,7 @@ export default function Topbar({ toggleSidebar }) {
 
     const markAsRead = async (id, link) => {
         try {
-            await api.put(`/notifications/${id}/read`);
+            await api.post(`notifications/${id}/read`);
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
             setShowNotifications(false);
@@ -35,7 +35,7 @@ export default function Topbar({ toggleSidebar }) {
 
     const markAllAsRead = async () => {
         try {
-            await api.put('/notifications/read-all');
+            await api.post('notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
             setUnreadCount(0);
         } catch { }

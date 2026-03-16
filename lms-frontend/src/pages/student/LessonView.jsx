@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import html2pdf from 'html2pdf.js';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { CardSkeleton } from '../../components/common/Skeleton';
@@ -24,8 +24,8 @@ export default function LessonView() {
         const fetchLesson = async () => {
             try {
                 const [lessonRes, settingsRes] = await Promise.all([
-                    api.get(`/lessons/${id}`),
-                    api.get('/settings').catch(() => ({ data: null }))
+                    api.get(`lessons/${id}`),
+                    api.get('settings').catch(() => ({ data: null }))
                 ]);
 
                 setLesson(lessonRes.data);
@@ -33,10 +33,18 @@ export default function LessonView() {
                     setSchoolSettings(settingsRes.data);
                 }
 
-                const parsedBlocks = lessonRes.data.blocks.map(b => ({
-                    ...b,
-                    content: typeof b.content === 'string' ? JSON.parse(b.content) : b.content
-                }));
+                const parsedBlocks = lessonRes.data.blocks.map(b => {
+                    let content = {};
+                    try {
+                        content = typeof b.content === 'string' ? JSON.parse(b.content) : b.content;
+                    } catch (e) {
+                        console.error("Failed to parse block content", b.content);
+                    }
+                    return {
+                        ...b,
+                        content: content || {}
+                    };
+                });
                 setBlocks(parsedBlocks);
             } catch (err) {
                 console.error("Failed to fetch lesson details", err);
@@ -46,6 +54,15 @@ export default function LessonView() {
             }
         };
         fetchLesson();
+
+        // Load TikTok Embed Script if not already present
+        if (!document.getElementById('tiktok-embed-script')) {
+            const script = document.createElement('script');
+            script.id = 'tiktok-embed-script';
+            script.src = 'https://www.tiktok.com/embed.js';
+            script.async = true;
+            document.head.appendChild(script);
+        }
     }, [id]);
 
     const handleQuizSubmit = async (blockId, selectedOption, correctAnswer) => {
@@ -59,7 +76,7 @@ export default function LessonView() {
         }));
 
         try {
-            await api.post('/quizzes/submit', {
+            await api.post('quizzes/submit', {
                 lesson_id: id,
                 lesson_block_id: blockId,
                 student_answer: selectedOption,
@@ -76,15 +93,17 @@ export default function LessonView() {
         // Helper: Bypass Canvas Tainting & CORS restrictions using a public raw proxy
         const getProxiedUrl = (url) => {
             if (!url) return '';
-            if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/')) return url;
-            return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            const fixedUrl = getMediaUrl(url);
+            if (fixedUrl.startsWith('data:') || fixedUrl.startsWith('blob:') || fixedUrl.startsWith('/')) return fixedUrl;
+            return `https://corsproxy.io/?${encodeURIComponent(fixedUrl)}`;
         };
 
         const proxifyHtmlImages = (htmlStr) => {
             if (!htmlStr) return '';
             return htmlStr.replace(/<img([^>]*)src="([^">]+)"([^>]*)>/gi, (match, prefix, url, suffix) => {
-                if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/')) return match;
-                const proxyUrl = getProxiedUrl(url);
+                const fixedUrl = getMediaUrl(url);
+                if (fixedUrl.startsWith('data:') || fixedUrl.startsWith('blob:') || fixedUrl.startsWith('/')) return match.replace(url, fixedUrl);
+                const proxyUrl = getProxiedUrl(fixedUrl);
                 // Ensure crossorigin is injected so html2canvas safely loads the proxied data
                 const hasCrossorigin = match.includes('crossorigin') || match.includes('crossOrigin');
                 return `<img${prefix}src="${proxyUrl}" ${!hasCrossorigin ? 'crossorigin="anonymous"' : ''}${suffix}>`;
@@ -125,8 +144,8 @@ export default function LessonView() {
             } else if (block.type === 'image') {
                 htmlContent += `
                     <div style="margin: 30px 0; text-align: center; page-break-inside: avoid;">
-                        <img src="${getProxiedUrl(block.content.url)}" crossorigin="anonymous" style="max-width: 100%; max-height: 500px; display: block; margin: 0 auto; border: 1px solid #ddd; padding: 4px; background: white;" alt="Lesson Visual" />
-                        ${block.content.caption ? `<p style="font-size: 11pt; color: #555; margin-top: 10px; font-style: italic;">Visual Reference: ${block.content.caption}</p>` : ''}
+                        <img src="${getProxiedUrl(block.content?.url)}" crossorigin="anonymous" style="max-width: 100%; max-height: 500px; display: block; margin: 0 auto; border: 1px solid #ddd; padding: 4px; background: white;" alt="Lesson Visual" />
+                        ${block.content?.caption ? `<p style="font-size: 11pt; color: #555; margin-top: 10px; font-style: italic;">Visual Reference: ${block.content.caption}</p>` : ''}
                     </div>
                 `;
             }
@@ -232,7 +251,7 @@ export default function LessonView() {
 
                 {/* Print-Only Academic Header */}
                 <div className="hidden print-header">
-                    {schoolSettings?.logo_url && <img src={schoolSettings.logo_url} alt="School Logo" className="h-24 mx-auto mb-4 grayscale" />}
+                    {schoolSettings?.logo_url && <img src={getMediaUrl(schoolSettings.logo_url)} alt="School Logo" className="h-24 mx-auto mb-4 grayscale" />}
                     <h1 className="text-3xl font-bold uppercase tracking-widest">{schoolSettings?.school_name || "Academic Institution"}</h1>
                     <h2 className="text-xl font-semibold mt-4 italic">Lesson Notes: {lesson.title}</h2>
                     <p className="text-sm mt-2">{new Date().toLocaleDateString()}</p>
@@ -326,7 +345,7 @@ export default function LessonView() {
                                     <div className={`${cardClasses} p-5 flex flex-col items-center bg-gray-50/20 group-hover/block:bg-white`}>
                                         <div className="w-full relative group/img overflow-hidden rounded-xl shadow-sm shadow-gray-200 ring-8 ring-white">
                                             <img
-                                                src={block.content.url}
+                                                src={getMediaUrl(block.content.url)}
                                                 alt={block.content.caption || 'Lesson visual'}
                                                 className="w-full h-auto object-contain max-h-[700px] transition-all duration-1000 group-hover/img:scale-105"
                                             />
@@ -366,8 +385,7 @@ export default function LessonView() {
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 gap-4">
-                                                        <svg className="w-9 h-9 opacity-20" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" /></svg>
-                                                        <span className="font-black text-xs">Video unavailable</span>
+                                                                        <span className="font-black text-xs">Video unavailable</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -375,26 +393,103 @@ export default function LessonView() {
                                     );
                                 })()}
 
-                                {/* GENERIC VIDEO BLOCK */}
-                                {block.type === 'video' && (
-                                    <div className={`${cardClasses} p-5 bg-gray-50/30 flex flex-col items-center hover:bg-white`}>
-                                        <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-sm shadow-gray-200 ring-8 ring-white transition-transform duration-700 group-hover/block:scale-[1.01]">
-                                            <video
-                                                controls
-                                                className="w-full aspect-video"
-                                                poster=""
-                                            >
-                                                <source src={block.content.url} />
-                                                Your browser does not support video.
-                                            </video>
+                                {/* TIKTOK BLOCK */}
+                                {block.type === 'tiktok' && (() => {
+                                    const getTikTokId = (url) => {
+                                        const matches = url?.match(/\/video\/(\d+)/);
+                                        return matches ? matches[1] : null;
+                                    };
+                                    const videoId = getTikTokId(block.content.url);
+
+                                    return (
+                                        <div className={`${cardClasses} p-5 bg-gray-50/30 flex flex-col items-center hover:bg-white`}>
+                                            <div className="w-full max-w-[325px] flex justify-center">
+                                                {videoId ? (
+                                                    <blockquote 
+                                                        className="tiktok-embed" 
+                                                        cite={block.content.url} 
+                                                        data-video-id={videoId} 
+                                                        style={{ maxWidth: '605px', minWidth: '325px' }}
+                                                    >
+                                                        <section>
+                                                            <a target="_blank" title="Check on TikTok" href={block.content.url}>TikTok Video</a>
+                                                        </section>
+                                                    </blockquote>
+                                                ) : (
+                                                   <div className="w-full h-80 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 font-bold uppercase text-[10px]">
+                                                       Invalid TikTok URL
+                                                   </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        {block.content.caption && (
-                                            <p className="mt-8 text-xs font-semibold text-gray-400 group-hover:text-school-secondary transition-colors">
-                                                Caption: {block.content.caption}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
+                                    );
+                                })()}
+
+
+                                {block.type === 'video' && (() => {
+                                    const isTikTok = (url) => {
+                                        if (!url) return false;
+                                        return url.includes('tiktok.com');
+                                    };
+
+                                    if (isTikTok(block.content.url)) {
+                                        // TikTok Embed Logic
+                                        const getTikTokId = (url) => {
+                                            const matches = url.match(/\/video\/(\d+)/);
+                                            return matches ? matches[1] : null;
+                                        };
+                                        const videoId = getTikTokId(block.content.url);
+
+                                        return (
+                                            <div className={`${cardClasses} p-5 bg-gray-50/30 flex flex-col items-center hover:bg-white`}>
+                                                <div className="w-full max-w-[325px] flex justify-center">
+                                                    {videoId ? (
+                                                        <blockquote 
+                                                            className="tiktok-embed" 
+                                                            cite={block.content.url} 
+                                                            data-video-id={videoId} 
+                                                            style={{ maxWidth: '605px', minWidth: '325px' }}
+                                                        >
+                                                            <section>
+                                                                <a target="_blank" title="Check on TikTok" href={block.content.url}>TikTok Video</a>
+                                                            </section>
+                                                        </blockquote>
+                                                    ) : (
+                                                       <div className="w-full h-80 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 font-bold uppercase text-[10px]">
+                                                           Invalid TikTok URL
+                                                       </div>
+                                                    )}
+                                                </div>
+                                                {block.content.caption && (
+                                                    <p className="mt-8 text-xs font-semibold text-gray-400 group-hover:text-school-secondary transition-colors text-center">
+                                                        {block.content.caption}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className={`${cardClasses} p-5 bg-gray-50/30 flex flex-col items-center hover:bg-white`}>
+                                            <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-sm shadow-gray-200 ring-8 ring-white transition-transform duration-700 group-hover/block:scale-[1.01]">
+                                                <video
+                                                    key={block.content.url}
+                                                    controls
+                                                    className="w-full aspect-video"
+                                                    poster=""
+                                                >
+                                                    <source src={getMediaUrl(block.content.url)} />
+                                                    Your browser does not support video.
+                                                </video>
+                                            </div>
+                                            {block.content.caption && (
+                                                <p className="mt-8 text-xs font-semibold text-gray-400 group-hover:text-school-secondary transition-colors">
+                                                    Caption: {block.content.caption}
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* INTERACTIVE QUIZ BLOCK */}
                                 {block.type === 'quiz' && (
@@ -542,7 +637,15 @@ export default function LessonView() {
                         ← Previous
                     </Button>
                     <Button
-                        onClick={() => navigate(-1)}
+                        onClick={async () => {
+                            try {
+                                await api.post(`lessons/${id}/complete`);
+                                navigate(-1);
+                            } catch (err) {
+                                console.error("Completion failed", err);
+                                navigate(-1); // Go back anyway to not block user
+                            }
+                        }}
                         className="w-full sm:w-auto px-5 py-6 rounded-lg font-semibold uppercase text-[11px] bg-school-secondary text-white shadow-sm shadow-indigo-200 hover:-translate-y-2 hover:scale-105 active:scale-95 transition-all duration-500 flex items-center gap-4"
                     >
                         Mark as Done & Continue →

@@ -27,13 +27,24 @@ class UserController extends Controller
     public function store(Request $request)
     {
         // 1. Validate the incoming data, enforcing the new expanded role list
+        // EXCLUDED: 'developer' from being created via API
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|string|email|max:255|unique:users',
             'admission_number' => 'nullable|string|max:50|unique:users',
             'password' => $request->role === 'student' ? 'nullable' : 'required|string|min:6',
-            'role' => 'required|string|in:admin,developer,principal,deputy_principal,dos,class_teacher,teacher,student',
+            'role' => 'required|string|in:admin,principal,deputy_principal,dos,class_teacher,teacher,student',
         ]);
+
+        // DOS Restriction: Cannot create administrative roles
+        if ($request->user()->role === 'dos') {
+            $restrictedRoles = ['admin', 'principal', 'deputy_principal', 'dos', 'developer'];
+            if (in_array($request->role, $restrictedRoles)) {
+                return response()->json([
+                    'message' => 'The DOS role is restricted from creating administrative accounts.'
+                ], 403);
+            }
+        }
 
         // 2. Ensure at least one login method (email or admission number) is provided
         if (empty($request->email) && empty($request->admission_number)) {
@@ -77,14 +88,36 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
+        // Allow 'developer' in validation ONLY if the user is already a developer
+        // This prevents creating new developers or promoting someone to developer
+        $allowedRoles = ['admin', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher', 'student'];
+        if ($user->role === 'developer') {
+            $allowedRoles[] = 'developer';
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|string|email|max:255|unique:users,email,' . $id,
             'admission_number' => 'nullable|string|max:50|unique:users,admission_number,' . $id,
-            'role' => 'required|string|in:admin,developer,principal,deputy_principal,dos,class_teacher,teacher,student',
+            'role' => 'required|string|in:' . implode(',', $allowedRoles),
             'password' => 'nullable|string|min:6',
             'access_key' => 'nullable|string'
         ]);
+
+        // DOS Restriction: Cannot promote to admin OR edit an existing admin
+        if ($request->user()->role === 'dos') {
+            $restrictedRoles = ['admin', 'principal', 'deputy_principal', 'dos', 'developer'];
+            if (in_array($request->role, $restrictedRoles) || in_array($user->role, $restrictedRoles)) {
+                return response()->json([
+                    'message' => 'The DOS role is restricted from managing administrative accounts.'
+                ], 403);
+            }
+        }
+
+        // Prevent non-developers from changing someone ELSE to a developer
+        if ($request->role === 'developer' && $user->role !== 'developer') {
+            return response()->json(['message' => 'Assigning the developer role is restricted.'], 403);
+        }
 
         $data = $request->only(['name', 'email', 'admission_number', 'role', 'curriculum_id', 'academic_level_id']);
 
@@ -236,13 +269,13 @@ class UserController extends Controller
 
         if ($request->hasFile('avatar')) {
             // Delete old avatar if present
-            if ($user->avatar) {
-                // Delete logic, e.g. \Illuminate\Support\Facades\Storage::disk('public')->delete(str_replace('/storage/', '', $user->avatar))
-                $oldPath = str_replace(url('/storage') . '/', '', $user->avatar);
+            $oldPath = $user->getRawOriginal('avatar');
+            if ($oldPath && !filter_var($oldPath, FILTER_VALIDATE_URL)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($oldPath);
             }
+            
             $path = $request->file('avatar')->store('avatars', 'public');
-            $user->avatar = url('/storage/' . $path);
+            $user->avatar = $path; // Store only the relative path (e.g., avatars/abc.jpg)
         }
 
         $user->save();
@@ -251,5 +284,17 @@ class UserController extends Controller
             'message' => 'Profile updated successfully',
             'user' => clone $user
         ]);
+    }
+
+    /**
+     * Get all staff members (anyone who is not a student).
+     */
+    public function getStaff()
+    {
+        $staff = User::whereNot('role', 'student')
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'email']);
+            
+        return response()->json($staff);
     }
 }

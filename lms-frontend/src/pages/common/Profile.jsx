@@ -1,12 +1,12 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../contexts/NotificationContext';
 
 export default function Profile() {
-    const { user } = useContext(AuthContext);
+    const { user, updateUser } = useContext(AuthContext);
     const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef(null);
     const { showNotification } = useNotification();
@@ -29,7 +29,7 @@ export default function Profile() {
                 email: user.email || ''
             }));
             if (user.avatar) {
-                setAvatarPreview(user.avatar);
+                setAvatarPreview(getMediaUrl(user.avatar));
             }
         }
     }, [user]);
@@ -62,8 +62,6 @@ export default function Profile() {
         try {
             // Because we might send a file, we use FormData
             const payload = new FormData();
-            // In Laravel, PUT with FormData sometimes fails unless we spoof it with POST and _method=PUT
-            payload.append('_method', 'PUT');
             payload.append('name', formData.name);
 
             if (formData.email) {
@@ -76,16 +74,19 @@ export default function Profile() {
                 payload.append('avatar', formData.avatar);
             }
 
-            await api.post('/user/profile', payload, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
+            // IMPORTANT: Do NOT set Content-Type manually for FormData.
+            // The browser must set it with the correct multipart boundary.
+            const response = await api.post('user/profile', payload);
 
-            showNotification('Profile updated successfully! Refreshing identity...', 'success');
+            // Update local context immediately
+            if (response.data.user) {
+                updateUser(response.data.user);
+            }
+
+            showNotification('Profile updated successfully!', 'success');
             setTimeout(() => {
                 window.location.reload();
-            }, 2000);
+            }, 1500);
         } catch (error) {
             console.error('Update failed:', error);
             showNotification(error.response?.data?.message || 'Failed to update profile', 'error');

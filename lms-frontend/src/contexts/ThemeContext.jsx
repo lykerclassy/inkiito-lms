@@ -13,7 +13,7 @@ export const ThemeProvider = ({ children }) => {
     useEffect(() => {
         const fetchBranding = async () => {
             try {
-                const res = await api.get('/branding');
+                const res = await api.get('branding');
                 setTheme(res.data);
                 applyTheme(res.data);
             } catch (err) {

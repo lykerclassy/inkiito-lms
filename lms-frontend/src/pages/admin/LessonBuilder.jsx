@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 
@@ -19,13 +19,21 @@ export default function LessonBuilder() {
     useEffect(() => {
         const fetchLesson = async () => {
             try {
-                const response = await api.get(`/lessons/${id}`);
+                const response = await api.get(`lessons/${id}`);
                 setLesson(response.data);
 
-                const parsedBlocks = response.data.blocks.map(b => ({
-                    ...b,
-                    content: typeof b.content === 'string' ? JSON.parse(b.content) : b.content
-                }));
+                const parsedBlocks = response.data.blocks.map(b => {
+                    let content = {};
+                    try {
+                        content = typeof b.content === 'string' ? JSON.parse(b.content) : b.content;
+                    } catch (e) {
+                        console.error("Failed to parse block content", b.content);
+                    }
+                    return {
+                        ...b,
+                        content: content || {}
+                    };
+                });
                 setBlocks(parsedBlocks);
             } catch (err) {
                 console.error("Failed to fetch lesson details", err);
@@ -48,6 +56,7 @@ export default function LessonBuilder() {
         if (type === 'text') defaultContent = { html: '' };
         if (type === 'image') defaultContent = { url: '', caption: '' };
         if (type === 'youtube') defaultContent = { url: '' };
+        if (type === 'tiktok') defaultContent = { url: '' };
         if (type === 'video') defaultContent = { url: '', caption: '' };
         if (type === 'quiz') defaultContent = { question: '', options: ['', '', '', ''], correct_answer: '' };
         if (type === 'code_editor') defaultContent = {
@@ -75,7 +84,7 @@ export default function LessonBuilder() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await api.put(`/lessons/${id}/blocks`, { blocks });
+            await api.post(`lessons/${id}/blocks`, { blocks });
             alert('Lesson blocks saved successfully!');
 
             // Optionally, refresh the page to get the true database IDs for any new blocks
@@ -103,7 +112,7 @@ export default function LessonBuilder() {
     return (
         <div className="max-w-5xl mx-auto space-y-6 pb-20">
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 z-10">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <button
                         onClick={() => navigate('/admin/curriculum')}
@@ -175,7 +184,7 @@ export default function LessonBuilder() {
                                                 if (file) {
                                                     const reader = new FileReader();
                                                     reader.onloadend = () => {
-                                                        updateBlockContent(index, { ...block.content, url: reader.result });
+                                                        updateBlockContent(index, { ...(block.content || {}), url: reader.result });
                                                     };
                                                     reader.readAsDataURL(file);
                                                 }
@@ -183,6 +192,11 @@ export default function LessonBuilder() {
                                         />
                                     </div>
                                 </div>
+                                {block.content?.url && (
+                                    <div className="mt-4 p-2 border rounded-lg bg-gray-50 flex justify-center">
+                                        <img src={getMediaUrl(block.content.url)} alt="Preview" className="max-h-40 rounded shadow-sm" />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Caption (Optional)</label>
                                     <input
@@ -207,6 +221,27 @@ export default function LessonBuilder() {
                                         placeholder="https://www.youtube.com/watch?v=..."
                                     />
                                 </div>
+                            </div>
+                        )}
+
+                        {block.type === 'tiktok' && (
+                            <div className="space-y-4 mt-8">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">TikTok Video URL</label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={block.content.url || ''}
+                                        onChange={(e) => updateBlockContent(index, { ...block.content, url: e.target.value })}
+                                        placeholder="https://www.tiktok.com/@user/video/..."
+                                    />
+                                </div>
+                                {block.content.url && block.content.url.includes('tiktok.com') && (
+                                    <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">TikTok Embed Preview Active</p>
+                                        <p className="text-xs text-blue-600 font-medium mt-1">Video will render fully in Student View</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -239,7 +274,7 @@ export default function LessonBuilder() {
                                                     }
                                                     const reader = new FileReader();
                                                     reader.onloadend = () => {
-                                                        updateBlockContent(index, { ...block.content, url: reader.result });
+                                                        updateBlockContent(index, { ...(block.content || {}), url: reader.result });
                                                     };
                                                     reader.readAsDataURL(file);
                                                 }
@@ -247,6 +282,11 @@ export default function LessonBuilder() {
                                         />
                                     </div>
                                 </div>
+                                {block.content?.url && (
+                                    <div className="mt-4 p-2 border rounded-lg bg-gray-50 flex justify-center">
+                                        <video src={getMediaUrl(block.content.url)} controls className="max-h-40 rounded shadow-sm" />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Caption (Optional)</label>
                                     <input
@@ -357,6 +397,7 @@ export default function LessonBuilder() {
                     <Button variant="outline" onClick={() => addNewBlock('text')}>+ Text Paragraph</Button>
                     <Button variant="outline" onClick={() => addNewBlock('image')}>+ Image</Button>
                     <Button variant="outline" onClick={() => addNewBlock('youtube')}>+ YouTube</Button>
+                    <Button variant="outline" onClick={() => addNewBlock('tiktok')}>+ TikTok</Button>
                     <Button variant="outline" onClick={() => addNewBlock('video')}>+ Local/URL Video</Button>
                     <Button variant="outline" onClick={() => addNewBlock('quiz')}>+ Multiple Choice Quiz</Button>
                     <Button variant="primary" onClick={() => addNewBlock('code_editor')}>

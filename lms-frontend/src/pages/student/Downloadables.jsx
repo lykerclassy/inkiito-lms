@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 
@@ -32,7 +32,7 @@ export default function Downloadables() {
                 subject_id: selectedSubject,
                 search: search
             };
-            const res = await api.get('/downloadables', { params });
+            const res = await api.get('downloadables', { params });
             setResources(res.data.resources);
             setSubjects(res.data.subjects);
         } catch (err) {
@@ -58,7 +58,7 @@ export default function Downloadables() {
             // For local server files, 'file_url' is already processed by the backend 
             // to include the correct domain (localhost or production domain)
             const downloadAnchor = document.createElement('a');
-            downloadAnchor.href = fileUrl;
+            downloadAnchor.href = getMediaUrl(fileUrl);
             downloadAnchor.setAttribute('download', title || 'document');
             downloadAnchor.setAttribute('target', '_blank'); // Open in new tab for external, usually forces download for local PDFs
 
@@ -68,7 +68,7 @@ export default function Downloadables() {
 
         } catch (err) {
             console.error("Download sync failed", err);
-            window.location.href = fileUrl; // Ultimate fallback
+            window.location.href = getMediaUrl(fileUrl); // Ultimate fallback
         } finally {
             setTimeout(() => setDownloadingId(null), 1500);
         }

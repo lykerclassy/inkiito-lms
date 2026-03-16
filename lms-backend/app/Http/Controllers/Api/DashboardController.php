@@ -94,19 +94,22 @@ class DashboardController extends Controller
 
     private function getTeacherStats($user)
     {
+        // Get the subjects assigned to this teacher
+        $assignedSubjectIds = DB::table('subject_teacher')
+            ->where('user_id', $user->id)
+            ->pluck('subject_id')
+            ->toArray();
+
         // 1. Core Summary Stats for Teachers
-        // Pending Grading: Submissions with no score yet
+        // Pending Grading: Submissions for assignments in teacher's subjects
         $pendingGrading = AssignmentSubmission::whereNull('score')
-            ->whereHas('assignment', function($q) use ($user) {
-                // In a real system, we'd filter by assignments created by this teacher
-                // For now, we'll show global pending for the demo user
+            ->whereHas('assignment', function($q) use ($assignedSubjectIds) {
+                $q->whereIn('subject_id', $assignedSubjectIds);
             })
             ->count();
 
-        // Active Classes: Number of distinct subjects the teacher might be associated with
-        // Since we don't have a direct Teacher -> Subject link yet, we'll mock this for now
-        // based on global subjects to keep the UI alive.
-        $activeClasses = Subject::count(); 
+        // Active Classes count
+        $activeClassesCount = count($assignedSubjectIds);
 
         $stats = [
             [
@@ -116,27 +119,29 @@ class DashboardController extends Controller
             ],
             [
                 'label' => 'Classes Taught',
-                'value' => (string)$activeClasses,
-                'trend' => 'Active this term'
+                'value' => (string)$activeClassesCount,
+                'trend' => 'Assigned to you'
             ],
             [
                 'label' => 'Average Score',
-                'value' => '78%', // Mocked until we have a real global grade book average
-                'trend' => '+2% from last term'
+                'value' => '78%', // Mocked until we have more historical global calc
+                'trend' => 'In your subjects'
             ],
         ];
 
-        // 2. My Active Classes (Mocked similarly to original UI but could be dynamic later)
-        $classes = Subject::withCount(['students', 'units'])
+        // 2. My Active Classes (Real subjects assigned to the teacher)
+        $classes = Subject::whereIn('id', $assignedSubjectIds)
+            ->withCount(['students', 'units'])
             ->latest()
-            ->take(2)
             ->get()
             ->map(function($subject) {
                 return [
                     'id' => $subject->id,
                     'title' => ($subject->academicLevel?->name ?? 'Unknown') . " - " . $subject->name,
-                    'subtitle' => "Subject Teacher • Next Class: 10:00 AM", // Hardcoded schedule for now
-                    'actionLabel' => "View Assignments"
+                    'subtitle' => "Subject Teacher",
+                    'actionLabel' => "View Details",
+                    'studentCount' => $subject->students_count . " Enrolled",
+                    'unitCount' => $subject->units_count . " Units"
                 ];
             });
 
@@ -193,11 +198,28 @@ class DashboardController extends Controller
             if ($recentLesson && $recentLesson->subUnit && $recentLesson->subUnit->unit && $recentLesson->subUnit->unit->subject) {
                 $unit = $recentLesson->subUnit->unit;
                 $subject = $unit->subject;
+
+                // REAL PROGRESS CALCULATION
+                // 1. Total lessons in this subject
+                $totalLessonsCount = \App\Models\Lesson::whereHas('subUnit.unit', function($q) use ($subject) {
+                    $q->where('subject_id', $subject->id);
+                })->where('is_published', true)->count();
+                
+                // 2. Lessons completed by this user in this subject
+                $completedLessonsCount = $user->completedLessons()
+                    ->whereHas('subUnit.unit', function($q) use ($subject) {
+                        $q->where('subject_id', $subject->id);
+                    })->count();
+
+                $realProgress = $totalLessonsCount > 0 
+                    ? round(($completedLessonsCount / $totalLessonsCount) * 100) 
+                    : 0;
+
                 $recentActivity = [
                     'subject' => $subject->name,
                     'unit' => $unit->title,
                     'lesson' => $recentLesson->title,
-                    'progress' => (($subject->id * 23) % 60) + 20, 
+                    'progress' => $realProgress, 
                     'lesson_id' => $recentLesson->id,
                     'subject_id' => $subject->id
                 ];

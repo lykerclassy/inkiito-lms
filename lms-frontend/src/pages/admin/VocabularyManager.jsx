@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../contexts/NotificationContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function VocabularyManager() {
+    const { user: currentUser } = useContext(AuthContext);
     const [vocabularies, setVocabularies] = useState([]);
     const [stats, setStats] = useState({ count: 0 });
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     const { showNotification, askConfirmation } = useNotification();
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({
@@ -21,6 +24,18 @@ export default function VocabularyManager() {
     const [pagination, setPagination] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
 
+    const canManageHub = (user) => {
+        if (!user) return false;
+        if (['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(user.role)) return true;
+
+        // Teachers who teach English
+        const subjects = user.taught_subjects || user.taughtSubjects || [];
+        return subjects.some(s => {
+            const name = (s.name || s).toLowerCase();
+            return name.includes('english');
+        });
+    };
+
     useEffect(() => {
         fetchVocabularies(currentPage);
     }, [currentPage]);
@@ -28,7 +43,7 @@ export default function VocabularyManager() {
     const fetchVocabularies = async (page = 1) => {
         setIsLoading(true);
         try {
-            const res = await api.get(`/admin/vocabularies?page=${page}`);
+            const res = await api.get(`admin/vocabularies?page=${page}`);
             setVocabularies(res.data.vocabularies);
             setStats({ count: res.data.count });
             setPagination(res.data.pagination);
@@ -45,7 +60,7 @@ export default function VocabularyManager() {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await api.post('/admin/vocabularies', formData);
+            await api.post('admin/vocabularies', formData);
             setFormData({ word: '', definition: '', phonetic: '', category: 'General' });
             setShowModal(false);
             fetchVocabularies(currentPage);
@@ -57,11 +72,24 @@ export default function VocabularyManager() {
         }
     };
 
+    const handleAiReplenish = async () => {
+        setIsGenerating(true);
+        try {
+            const res = await api.post('admin/ai-replenish', { count: 8 });
+            showNotification(res.data.message, "success");
+            fetchVocabularies(1);
+        } catch (err) {
+            showNotification(err.response?.data?.message || "AI Replenishment failed", "error");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     const handleDelete = async (id) => {
         const confirmed = await askConfirmation("Are you sure you want to remove this word from the bank?", "Remove word?");
         if (!confirmed) return;
         try {
-            await api.delete(`/admin/vocabularies/${id}`);
+            await api.delete(`admin/vocabularies/${id}`);
             fetchVocabularies(currentPage);
             showNotification("Word removed.", "success");
         } catch (err) {
@@ -80,10 +108,23 @@ export default function VocabularyManager() {
                     <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-bold border border-blue-100 flex-1 sm:flex-none text-center">
                         {stats.count} Words in Bank
                     </div>
-                    <Button onClick={() => setShowModal(true)} className="flex-1 sm:flex-none whitespace-nowrap">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                        Add Word Manually
-                    </Button>
+                    {canManageHub(currentUser) && (
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <Button
+                                variant="outline"
+                                onClick={handleAiReplenish}
+                                isLoading={isGenerating}
+                                className="flex-1 sm:flex-none whitespace-nowrap border-purple-200 text-purple-600 hover:bg-purple-50"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                AI Generate
+                            </Button>
+                            <Button onClick={() => setShowModal(true)} className="flex-1 sm:flex-none whitespace-nowrap">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                                Add Manually
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -103,7 +144,9 @@ export default function VocabularyManager() {
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase ">Category</th>
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase ">Definition</th>
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase ">Phonetic</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase  text-right">Actions</th>
+                                    {canManageHub(currentUser) && (
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase  text-right">Actions</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -117,14 +160,16 @@ export default function VocabularyManager() {
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-600 max-w-md truncate">{v.definition}</td>
                                         <td className="px-6 py-4 text-sm text-gray-400">{v.phonetic || '-'}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button
-                                                onClick={() => handleDelete(v.id)}
-                                                className="text-red-400 hover:text-red-600 p-2"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                            </button>
-                                        </td>
+                                        {canManageHub(currentUser) && (
+                                            <td className="px-6 py-4 text-right">
+                                                <button
+                                                    onClick={() => handleDelete(v.id)}
+                                                    className="text-red-400 hover:text-red-600 p-2"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                                 {vocabularies.length === 0 && (

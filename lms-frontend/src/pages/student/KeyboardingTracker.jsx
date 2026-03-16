@@ -145,7 +145,7 @@ export default function KeyboardingTracker() {
     const fetchUserStats = async () => {
         setIsLoading(true);
         try {
-            const res = await api.get('/typing-scores');
+            const res = await api.get('typing-scores');
             setHistory(res.data.scores || []);
             setGlobalStats(res.data.stats || null);
         } catch (err) {
@@ -211,7 +211,7 @@ export default function KeyboardingTracker() {
 
         // Save to backend... (rest of old logic follows)
         try {
-            await api.post('/typing-scores', {
+            await api.post('typing-scores', {
                 wpm,
                 accuracy,
                 duration_seconds: durationSeconds
