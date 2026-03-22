@@ -4,6 +4,7 @@ import api from '../../services/api';
 import Button from '../../components/common/Button';
 import MathText from '../../components/common/MathText';
 import MathAssistant from '../../components/common/MathAssistant';
+import PageLoader from '../../components/common/PageLoader';
 
 const MathPreview = ({ text }) => {
     if (!text || !(/(\$|\\\[|\\\(|\\\$)/.test(text))) return null;
@@ -272,7 +273,7 @@ export default function AssignmentBuilder() {
         }
     };
 
-    if (isLoading) return <div className="p-4 text-gray-500 font-medium">Loading Builder...</div>;
+    if (isLoading) return <PageLoader message="Initializing Assessment Architect..." color="red" />;
     if (error) return <div className="p-4 text-red-500 font-medium">{error}</div>;
 
     return (

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 
 export default function Quizzes() {
@@ -33,10 +34,7 @@ export default function Quizzes() {
             </header>
 
             {isLoading ? (
-                <div className="py-20 text-center animate-pulse">
-                    <div className="w-12 h-12 bg-blue-600 rounded-2xl mx-auto animate-spin mb-4" />
-                    <p className="text-[10px] font-black uppercase text-gray-400">Booting Quiz Engine...</p>
-                </div>
+                <PageLoader message="Booting Quiz Engine..." color="blue" />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 px-4 sm:px-0">
                     {quizzes.map(quiz => (

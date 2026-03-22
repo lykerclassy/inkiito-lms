@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -167,7 +168,9 @@ export default function HardwareManager() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {isLoading ? (
-                        <div className="col-span-full py-20 text-center text-gray-400 font-bold">Loading hardware assets...</div>
+                        <div className="col-span-full py-10">
+                            <PageLoader message="Scanning hardware inventory..." color="blue" />
+                        </div>
                     ) : items.map(item => (
                         <Card key={item.id} className="relative group overflow-hidden">
                             <div className="h-40 bg-gray-100 overflow-hidden">

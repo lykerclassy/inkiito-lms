@@ -92,10 +92,12 @@ class QuizManagementController extends Controller
             'options' => 'nullable', // Removed array constraint because it's sent as JSON string
             'correct_answer' => 'required|string',
             'points' => 'integer',
+            'feedback_correct' => 'nullable|string',
+            'feedback_incorrect' => 'nullable|string',
             'image' => 'nullable|image|max:2048'
         ]);
 
-        $data = $request->only(['question_text', 'question_type', 'correct_answer', 'points']);
+        $data = $request->only(['question_text', 'question_type', 'correct_answer', 'points', 'feedback_correct', 'feedback_incorrect']);
         
         // Handle options if present (sent as JSON string via FormData)
         if ($request->has('options')) {
@@ -121,6 +123,8 @@ class QuizManagementController extends Controller
             'options' => 'nullable',
             'correct_answer' => 'sometimes|required|string',
             'points' => 'sometimes|integer',
+            'feedback_correct' => 'nullable|string',
+            'feedback_incorrect' => 'nullable|string',
             'image' => 'nullable|image|max:2048'
         ]);
         

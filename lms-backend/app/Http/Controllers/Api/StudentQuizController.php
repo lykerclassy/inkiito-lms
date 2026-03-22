@@ -81,7 +81,9 @@ class StudentQuizController extends Controller
                 'question_id' => $question->id,
                 'is_correct' => $isCorrect,
                 'correct_answer' => $question->correct_answer,
-                'student_answer' => $studentAnswer
+                'student_answer' => $studentAnswer,
+                'feedback_correct' => $question->feedback_correct,
+                'feedback_incorrect' => $question->feedback_incorrect
             ];
         }
 

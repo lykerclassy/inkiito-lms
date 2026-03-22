@@ -24,6 +24,9 @@ import ScienceLab from './pages/student/ScienceLab';
 import ExperimentView from './pages/student/ExperimentView';
 import CareerExplorer from './pages/student/CareerExplorer';
 import Downloadables from './pages/student/Downloadables';
+import CampusCommunities from './pages/student/CampusCommunities';
+import CommunityView from './pages/student/CommunityView';
+import PowerAI from './pages/student/PowerAI';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -175,6 +178,9 @@ export default function App() {
                 <Route path="science-lab/:slug" element={<ExperimentView />} />
                 <Route path="future-focus" element={<CareerExplorer />} />
                 <Route path="resources" element={<Downloadables />} />
+                <Route path="communities" element={<CampusCommunities />} />
+                <Route path="communities/:id" element={<CommunityView />} />
+                <Route path="ai-chat" element={<PowerAI />} />
               </Routes>
             </StudentLayout>
           </ProtectedRoute>
@@ -202,6 +208,8 @@ export default function App() {
                 <Route path="vocabulary-bank" element={<VocabularyManager />} />
                 <Route path="resource-library" element={<ResourceManager />} />
                 <Route path="lab-assets" element={<HardwareManager />} />
+                <Route path="communities" element={<CampusCommunities />} />
+                <Route path="communities/:id" element={<CommunityView />} />
 
                 {/* PREVIEW MODES: Point to the same student components but rendered inside AdminLayout */}
                 <Route path="science-labs/view/:slug" element={<ScienceLab />} />
@@ -225,6 +233,7 @@ export default function App() {
                     <Settings />
                   </ProtectedRoute>
                 } />
+                <Route path="ai-chat" element={<PowerAI />} />
               </Routes>
             </AdminLayout>
           </ProtectedRoute>

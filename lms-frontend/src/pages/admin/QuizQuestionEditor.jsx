@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api, { getMediaUrl } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 
@@ -21,6 +22,8 @@ export default function QuizQuestionEditor() {
         options: ['', '', '', ''],
         correct_answer: '',
         points: 1,
+        feedback_correct: '',
+        feedback_incorrect: '',
         image: null,
         image_preview: null
     });
@@ -35,6 +38,23 @@ export default function QuizQuestionEditor() {
         setIsLoading(true);
         try {
             const res = await api.get(`admin/quizzes/${id}`);
+            
+            // Defensively parse options in case they were double-encoded as strings in the database
+            if (res.data && Array.isArray(res.data.questions)) {
+                res.data.questions.forEach(q => {
+                    if (typeof q.options === 'string') {
+                        try {
+                            q.options = JSON.parse(q.options);
+                        } catch (e) {
+                            q.options = ['', '', '', ''];
+                        }
+                    }
+                    if (!Array.isArray(q.options)) {
+                        q.options = ['', '', '', ''];
+                    }
+                });
+            }
+            
             setQuiz(res.data);
         } catch (err) {
             console.error(err);
@@ -53,6 +73,8 @@ export default function QuizQuestionEditor() {
         data.append('question_type', formData.question_type);
         data.append('correct_answer', formData.correct_answer);
         data.append('points', formData.points);
+        data.append('feedback_correct', formData.feedback_correct || '');
+        data.append('feedback_incorrect', formData.feedback_incorrect || '');
         data.append('options', JSON.stringify(formData.options));
         if (formData.image) {
             data.append('image', formData.image);
@@ -98,6 +120,8 @@ export default function QuizQuestionEditor() {
                 options: q.options || ['', '', '', ''],
                 correct_answer: q.correct_answer,
                 points: q.points,
+                feedback_correct: q.feedback_correct || '',
+                feedback_incorrect: q.feedback_incorrect || '',
                 image: null,
                 image_preview: getMediaUrl(q.image_path)
             });
@@ -109,6 +133,8 @@ export default function QuizQuestionEditor() {
                 options: ['', '', '', ''],
                 correct_answer: '',
                 points: 1,
+                feedback_correct: '',
+                feedback_incorrect: '',
                 image: null,
                 image_preview: null
             });
@@ -117,7 +143,7 @@ export default function QuizQuestionEditor() {
         setShowModal(true);
     };
 
-    if (isLoading) return <div className="py-20 text-center animate-pulse text-gray-400 font-bold uppercase tracking-widest">Loading Master Library...</div>;
+    if (isLoading) return <PageLoader message="Initializing Learning Assessment Engine..." color="blue" />;
 
     return (
         <div className="space-y-6">
@@ -344,6 +370,29 @@ export default function QuizQuestionEditor() {
                                             ))}
                                         </div>
                                     )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-6">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Feedback if Correct (Optional)</label>
+                                            <textarea
+                                                rows="2"
+                                                placeholder="e.g. Good job! Photosynthesis requires sunlight..."
+                                                className="w-full p-4 bg-green-50/50 border-none rounded-2xl focus:ring-2 focus:ring-green-400 outline-none text-sm font-medium text-gray-900 resize-none placeholder:text-gray-400"
+                                                value={formData.feedback_correct}
+                                                onChange={(e) => setFormData({ ...formData, feedback_correct: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Feedback if Incorrect (Optional)</label>
+                                            <textarea
+                                                rows="2"
+                                                placeholder="e.g. Remember, the powerhouse of the cell is..."
+                                                className="w-full p-4 bg-red-50/50 border-none rounded-2xl focus:ring-2 focus:ring-red-400 outline-none text-sm font-medium text-gray-900 resize-none placeholder:text-gray-400"
+                                                value={formData.feedback_incorrect}
+                                                onChange={(e) => setFormData({ ...formData, feedback_incorrect: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-4 pt-4">

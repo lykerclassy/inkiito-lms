@@ -60,6 +60,17 @@ class SubjectController extends Controller
         return response()->json(['message' => 'Subject created', 'subject' => $subject]);
     }
 
+    public function storeAcademicLevel(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'curriculum_id' => 'required|exists:curriculums,id'
+        ]);
+
+        $level = AcademicLevel::create($request->all());
+        return response()->json(['message' => 'Class / Academic Level created', 'level' => $level]);
+    }
+
     public function storeUnit(Request $request)
     {
         $request->validate([

@@ -84,52 +84,23 @@ export default function Grades() {
                         </div>
                     </Card>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="p-8 border-2 border-gray-100 shadow-xl bg-white">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-6">Subject Breakdown</h3>
-                            <div className="space-y-4">
-                                <div
-                                    onClick={() => setSelectedSubjectId('')}
-                                    className={`flex items-center justify-between p-4 rounded-2xl transition-all group cursor-pointer ${selectedSubjectId === '' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 hover:bg-gray-100'}`}
-                                >
-                                    <span className={`text-sm font-black uppercase tracking-tight ${selectedSubjectId === '' ? 'text-white' : 'text-gray-900'}`}>Consolidated View</span>
-                                    <svg className={`w-4 h-4 ${selectedSubjectId === '' ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                    <div className="space-y-6">
+                        <Card className="p-8 bg-purple-600 text-white border-none shadow-xl">
+                            <h3 className="text-xs font-black uppercase tracking-widest opacity-70 mb-4">Neural Learning Stats</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="flex justify-between items-center bg-black/10 p-4 rounded-2xl">
+                                    <span className="text-xs font-bold italic uppercase tracking-wider">Total Quizzes</span>
+                                    <span className="text-2xl font-black">{myGrade?.total_quizzes || 0}</span>
                                 </div>
-
-                                {gradeData?.subjects?.map(subj => {
-                                    const isSelected = selectedSubjectId == subj.id;
-                                    return (
-                                        <div
-                                            key={subj.id}
-                                            onClick={() => setSelectedSubjectId(subj.id)}
-                                            className={`flex items-center justify-between p-4 rounded-2xl transition-all group cursor-pointer ${isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 hover:bg-gray-100'}`}
-                                        >
-                                            <span className={`text-sm font-black uppercase tracking-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>{subj.name}</span>
-                                            <svg className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-blue-600'} transform group-hover:translate-x-1 transition-transform`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
-                                        </div>
-                                    );
-                                })}
+                                <div className="flex justify-between items-center bg-black/10 p-4 rounded-2xl">
+                                    <span className="text-xs font-bold italic uppercase tracking-wider">Assignments</span>
+                                    <span className="text-2xl font-black">{myGrade?.assignment_count || 0}</span>
+                                </div>
                             </div>
                         </Card>
-
-                        <div className="space-y-6">
-                            <Card className="p-8 bg-purple-600 text-white border-none shadow-xl">
-                                <h3 className="text-xs font-black uppercase tracking-widest opacity-70 mb-4">Neural Learning Stats</h3>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center bg-black/10 p-4 rounded-2xl">
-                                        <span className="text-xs font-bold italic uppercase tracking-wider">Total Quizzes</span>
-                                        <span className="text-2xl font-black">{myGrade?.total_quizzes || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center bg-black/10 p-4 rounded-2xl">
-                                        <span className="text-xs font-bold italic uppercase tracking-wider">Assignments</span>
-                                        <span className="text-2xl font-black">{myGrade?.assignment_count || 0}</span>
-                                    </div>
-                                </div>
-                            </Card>
-                            <Button className="w-full py-6 font-black uppercase tracking-widest italic" onClick={() => navigate('/student/quizzes')}>
-                                Explore New Quizzes
-                            </Button>
-                        </div>
+                        <Button className="w-full py-6 font-black uppercase tracking-widest italic" onClick={() => navigate('/student/quizzes')}>
+                            Explore New Quizzes
+                        </Button>
                     </div>
                 </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -115,10 +116,7 @@ export default function QuizManager() {
             </div>
 
             {isLoading ? (
-                <div className="py-20 text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-500 font-medium">Loading your quizzes...</p>
-                </div>
+                <PageLoader message="Initializing Learning Assessment Engine..." color="blue" />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {quizzes.map(quiz => (

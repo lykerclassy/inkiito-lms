@@ -3,6 +3,7 @@ import api, { getMediaUrl } from '../../services/api';
 
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 
 export default function Settings() {
     const [isSaving, setIsSaving] = useState(false);
@@ -102,7 +103,7 @@ export default function Settings() {
         }
     };
 
-    if (isLoading) return <div className="p-4 text-gray-500">Loading settings...</div>;
+    if (isLoading) return <PageLoader message="Synchronizing Global Parameters..." color="blue" />;
 
     return (
         <div className="max-w-4xl space-y-6">

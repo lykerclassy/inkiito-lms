@@ -73,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Subject/Unit CREATION restricted to management (they define the structure)
     Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer,principal,deputy_principal,dos')->group(function () {
         Route::post('/subjects', [SubjectController::class, 'store']);
+        Route::post('/academic-levels', [SubjectController::class, 'storeAcademicLevel']);
         Route::post('/units', [SubjectController::class, 'storeUnit']);
         Route::put('/units/{id}', [SubjectController::class, 'updateUnit']);
         Route::post('/subunits', [SubjectController::class, 'storeSubUnit']);
@@ -96,6 +97,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/users', [UserController::class, 'store']);
         Route::put('/users/{id}', [UserController::class, 'update']);
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
+        Route::post('/pathways', [\App\Http\Controllers\Api\CareerController::class, 'storePathway']);
+        Route::put('/pathways/{id}', [\App\Http\Controllers\Api\CareerController::class, 'updatePathway']);
+        Route::delete('/pathways/{id}', [\App\Http\Controllers\Api\CareerController::class, 'destroyPathway']);
+
+        Route::post('/career-tracks', [\App\Http\Controllers\Api\CareerController::class, 'storeTrack']);
+        Route::put('/career-tracks/{id}', [\App\Http\Controllers\Api\CareerController::class, 'updateTrack']);
+        Route::delete('/career-tracks/{id}', [\App\Http\Controllers\Api\CareerController::class, 'destroyTrack']);
         Route::post('/users/import-csv', [UserController::class, 'importCSV']);
         Route::put('/users/{id}/enrollments', [UserController::class, 'updateEnrollments']);
     });
@@ -134,9 +142,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/typing-scores', [TypingScoreController::class, 'store']);
     Route::get('/typing-leaderboard', [TypingScoreController::class, 'leaderboard']);
 
+    // --- CAMPUS COMMUNITIES ---
+    Route::get('/communities', [\App\Http\Controllers\Api\CommunityController::class, 'index']);
+    Route::post('/communities', [\App\Http\Controllers\Api\CommunityController::class, 'store']);
+    Route::post('/communities/{id}', [\App\Http\Controllers\Api\CommunityController::class, 'update']); // Use POST because of multipart/form-data for image uploads
+    Route::get('/communities/{id}', [\App\Http\Controllers\Api\CommunityController::class, 'show']);
+    Route::post('/communities/{id}/join', [\App\Http\Controllers\Api\CommunityController::class, 'join']);
+    Route::post('/communities/{id}/leave', [\App\Http\Controllers\Api\CommunityController::class, 'leave']);
+    Route::post('/communities/{id}/posts', [\App\Http\Controllers\Api\CommunityController::class, 'storePost']);
+    Route::delete('/communities/{id}/posts/{postId}', [\App\Http\Controllers\Api\CommunityController::class, 'destroyPost']);
+    Route::post('/communities/{id}/posts/{postId}/replies', [\App\Http\Controllers\Api\CommunityController::class, 'storeReply']);
+    Route::post('/communities/{id}/events', [\App\Http\Controllers\Api\CommunityEventController::class, 'store']);
+
     // --- AI / INTELLIGENCE ---
     Route::get('/ai/vocabulary/generate', [AIController::class, 'generateVocabulary']);
     Route::post('/ai/vocabulary/mark-learned', [AIController::class, 'markLearned']);
+    Route::post('/ai/chat', [AIController::class, 'chat']);
+    Route::get('/ai/chats', [AIController::class, 'getChats']);
+    Route::get('/ai/chats/{id}', [AIController::class, 'getChat']);
+    Route::delete('/ai/chats/{id}', [AIController::class, 'deleteChat']);
+    Route::post('/ai/revision', [AIController::class, 'generateRevision']);
     
     // --- STANDALONE QUIZZES ---
     // Staff/Admin Management

@@ -85,15 +85,15 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            // First, remove the token from storage
-            localStorage.removeItem('token');
-            delete api.defaults.headers.common['Authorization'];
-            setUser(null);
-
-            // Then notify the server
+            // First notify the server while we still hold a valid token
             await api.post('logout');
         } catch (error) {
             console.error("Logout error on server:", error);
+        } finally {
+            // Then cleanly shred the token from browser memory and drop user state
+            localStorage.removeItem('token');
+            delete api.defaults.headers.common['Authorization'];
+            setUser(null);
         }
     };
 

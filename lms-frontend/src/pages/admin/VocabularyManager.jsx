@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../../services/api';
+import PageLoader from '../../components/common/PageLoader';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -130,10 +131,7 @@ export default function VocabularyManager() {
 
 
             {isLoading ? (
-                <div className="py-20 text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-500">Loading vocabulary bank...</p>
-                </div>
+                <PageLoader message="Accessing Linguistic Database..." color="purple" />
             ) : (
                 <Card className="overflow-hidden">
                     <div className="overflow-x-auto">

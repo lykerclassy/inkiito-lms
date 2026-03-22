@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Career;
 use App\Models\Pathway;
+use App\Models\CareerTrack;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -12,7 +13,7 @@ class CareerController extends Controller
 {
     public function getPathways()
     {
-        return response()->json(Pathway::all());
+        return response()->json(Pathway::with('tracks')->get());
     }
 
     public function storePathway(Request $request)
@@ -64,9 +65,41 @@ class CareerController extends Controller
         return response()->json(['message' => 'Pathway deleted']);
     }
 
+    public function storeTrack(Request $request)
+    {
+        if ($request->user()->role === 'teacher') return response()->json(['message' => 'Unauthorized'], 403);
+        $validated = $request->validate([
+            'pathway_id' => 'required|exists:pathways,id',
+            'name' => 'required|string',
+            'description' => 'nullable|string'
+        ]);
+        return response()->json(CareerTrack::create($validated), 201);
+    }
+
+    public function updateTrack(Request $request, $id)
+    {
+        if ($request->user()->role === 'teacher') return response()->json(['message' => 'Unauthorized'], 403);
+        $track = CareerTrack::findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'description' => 'nullable|string'
+        ]);
+        $track->update($validated);
+        return response()->json($track);
+    }
+
+    public function destroyTrack(Request $request, $id)
+    {
+        if ($request->user()->role === 'teacher') return response()->json(['message' => 'Unauthorized'], 403);
+        $track = CareerTrack::findOrFail($id);
+        if ($track->careers()->count() > 0) return response()->json(['message' => 'Cannot delete track with careers'], 422);
+        $track->delete();
+        return response()->json(['message' => 'Track deleted']);
+    }
+
     public function index(Request $request)
     {
-        $query = Career::with(['pathway', 'subjects']);
+        $query = Career::with(['pathway', 'careerTrack', 'subjects']);
         
         if ($request->pathway_id) {
             $query->where('pathway_id', $request->pathway_id);
@@ -83,7 +116,7 @@ class CareerController extends Controller
 
         $validated = $request->validate([
             'pathway_id' => 'required|exists:pathways,id',
-            'track' => 'nullable|string',
+            'career_track_id' => 'nullable|exists:career_tracks,id',
             'name' => 'required|string',
             'description' => 'required|string',
             'salary_range' => 'nullable|string',
@@ -91,12 +124,12 @@ class CareerController extends Controller
             'qualifications' => 'nullable|string',
             'skills' => 'nullable|string',
             'typical_employers' => 'nullable|string',
-            'subjects' => 'array' // Array of {id, is_mandatory}
+            'subjects' => 'array'
         ]);
 
         $career = Career::create([
             'pathway_id' => $validated['pathway_id'],
-            'track' => $validated['track'] ?? null,
+            'career_track_id' => $validated['career_track_id'] ?? null,
             'name' => $validated['name'],
             'slug' => Str::slug($validated['name']),
             'description' => $validated['description'],
@@ -113,7 +146,7 @@ class CareerController extends Controller
             }
         }
 
-        return response()->json($career->load(['pathway', 'subjects']), 201);
+        return response()->json($career->load(['pathway', 'careerTrack', 'subjects']), 201);
     }
 
     public function update(Request $request, $id)
@@ -125,7 +158,7 @@ class CareerController extends Controller
         $career = Career::findOrFail($id);
         $validated = $request->validate([
             'pathway_id' => 'required|exists:pathways,id',
-            'track' => 'nullable|string',
+            'career_track_id' => 'nullable|exists:career_tracks,id',
             'name' => 'required|string',
             'description' => 'required|string',
             'salary_range' => 'nullable|string',
@@ -138,7 +171,7 @@ class CareerController extends Controller
 
         $career->update([
             'pathway_id' => $validated['pathway_id'],
-            'track' => $validated['track'] ?? null,
+            'career_track_id' => $validated['career_track_id'] ?? null,
             'name' => $validated['name'],
             'slug' => Str::slug($validated['name']),
             'description' => $validated['description'],

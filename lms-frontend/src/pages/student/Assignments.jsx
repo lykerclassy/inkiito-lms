@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import MathText from '../../components/common/MathText';
 
@@ -38,17 +39,7 @@ export default function Assignments() {
 
     const filteredAssignments = assignments.filter(a => a.status === activeTab);
 
-    if (isLoading) {
-        return (
-            <div className="space-y-4 animate-in fade-in duration-500">
-                <CardSkeleton />
-                <div className="grid grid-cols-1 gap-6">
-                    <CardSkeleton />
-                    <CardSkeleton />
-                </div>
-            </div>
-        );
-    }
+    if (isLoading) return <PageLoader message="Fetching your coursework assignments..." color="red" />;
     if (error) return <div className="p-4 bg-red-50 text-school-primary font-black rounded-xl border border-red-100">{error}</div>;
 
     return (

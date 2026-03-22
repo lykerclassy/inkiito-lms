@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import { AuthContext } from '../../contexts/AuthContext';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import api from '../../services/api';
@@ -87,16 +88,7 @@ export default function ScienceLab() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="space-y-5">
-                <div className="h-40 bg-gray-50 rounded-2xl animate-pulse" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[1, 2].map(i => <CardSkeleton key={i} />)}
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <PageLoader message="Calibrating Virtual Lab Systems..." color="emerald" />;
 
     return (
         <div className="max-w-7xl mx-auto space-y-5 pb-24 animate-in fade-in duration-300">

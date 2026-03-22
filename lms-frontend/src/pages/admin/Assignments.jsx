@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import { useNotification } from '../../contexts/NotificationContext';
 import { AuthContext } from '../../contexts/AuthContext';
 
@@ -174,7 +175,7 @@ export default function AdminAssignments() {
         }
     };
 
-    if (isLoading) return <div className="p-4 text-gray-500 font-medium">Loading assignments...</div>;
+    if (isLoading) return <PageLoader message="Retrieving Active Assessments..." color="blue" />;
     if (error) return <div className="p-4 text-red-500 font-medium">{error}</div>;
 
     return (

@@ -3,6 +3,7 @@ import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import EnrollmentIndicator from '../../components/common/EnrollmentIndicator';
+import PageLoader from '../../components/common/PageLoader';
 import { useNotification } from '../../contexts/NotificationContext';
 import { AuthContext } from '../../contexts/AuthContext';
 
@@ -289,7 +290,7 @@ export default function UserManagement() {
         !editingEnrollments.some(env => env.subject_id === sub.id)
     );
 
-    if (isLoading) return <div className="p-4 text-gray-500 font-medium">Loading user database...</div>;
+    if (isLoading) return <PageLoader message="Synchronizing user database..." color="blue" />;
     if (error) return <div className="p-4 text-red-500 font-medium">{error}</div>;
 
     return (

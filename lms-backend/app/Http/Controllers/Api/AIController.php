@@ -53,11 +53,12 @@ class AIController extends Controller
         // We use the Laravel file cache to rate-limit calls (max 1 every 2 hours).
         $cacheKey = 'gemini_vocab_last_fetch';
         $lastFetch = \Illuminate\Support\Facades\Cache::get($cacheKey);
-        $shouldFetchFromAi = !empty($apiKey) && (!$lastFetch || now()->diffInMinutes($lastFetch) >= 120);
+        $isLocked = \Illuminate\Support\Facades\Cache::get($cacheKey . '_lock');
+        $shouldFetchFromAi = !empty($apiKey) && !$isLocked && (!$lastFetch || now()->diffInMinutes($lastFetch) >= 120);
 
         if ($shouldFetchFromAi) {
             // Mark that we're fetching now to prevent other requests triggering simultaneously
-            \Illuminate\Support\Facades\Cache::put($cacheKey, now(), now()->addHours(3));
+            \Illuminate\Support\Facades\Cache::put($cacheKey . '_lock', true, now()->addMinutes(2));
 
             try {
                 // Fetch a small batch to enrich the pool (not to show directly)
@@ -82,6 +83,9 @@ class AIController extends Controller
                         }
                     }
 
+                    // On success, update the last fetch timestamp to lock out for 2 hours
+                    \Illuminate\Support\Facades\Cache::put($cacheKey, now(), now()->addHours(3));
+
                     // If the user has not seen this new word, serve it instead
                     if ($newlyAdded && !$seenWordIds->contains($newlyAdded->id)) {
                         $wordData = [
@@ -97,6 +101,12 @@ class AIController extends Controller
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Gemini AI Hub Error: " . $e->getMessage());
                 // Fallback gracefully - the local wordData will be returned
+                // If it is a hard rate limit error, back off for 15 minutes instead of 2 hours
+                if (str_contains(strtolower($e->getMessage()), 'rate limit') || str_contains(strtolower($e->getMessage()), '429') || str_contains(strtolower($e->getMessage()), 'quota')) {
+                     \Illuminate\Support\Facades\Cache::put($cacheKey, now()->subMinutes(105), now()->addHours(1)); // 120 - 105 = 15 mins backoff
+                }
+            } finally {
+                \Illuminate\Support\Facades\Cache::forget($cacheKey . '_lock');
             }
         }
 
@@ -139,14 +149,15 @@ class AIController extends Controller
     private function fetchFromGemini($apiKey, $count = 1)
     {
         // Using v1beta endpoint for latest model support (Gemini 2.5)
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
         
         $prompt = "Act as a high-level English Professor. Generate exactly $count unique, advanced English vocabulary word(s) suitable for a grade 10-12 student.
         Distribute them across academic categories (e.g., Science, Technology, Literature, Philosophy, Psychology, General).
         YOU MUST RETURN ONLY A RAW JSON ARRAY containing exactly $count objects. 
         Each object MUST have exactly these keys: 'word', 'definition', 'phonetic', 'category'. 
         The words must be academically challenging.
-        Example Format: [{\"word\": \"Ephemeral\", \"definition\": \"Lasting for a very short time\", \"phonetic\": \"/ɪˈfɛm(ə)rəl/\", \"category\": \"General\"}]";
+        CRITICAL: Inside the 'definition' string, you MUST first write the meaning, followed by a bolded example sentence like so: 'Meaning here. <br><br><b>Example:</b> The sentence here.'
+        Example Format: [{\"word\": \"Ephemeral\", \"definition\": \"Lasting for a very short time. <br><br><b>Example:</b> Fashions are ephemeral and constantly changing.\", \"phonetic\": \"/ɪˈfɛm(ə)rəl/\", \"category\": \"General\"}]";
 
         $client = new \GuzzleHttp\Client(['timeout' => 45]);
         
@@ -160,7 +171,8 @@ class AIController extends Controller
                     'contents' => [['parts' => [['text' => $prompt]]]],
                     'generationConfig' => [
                         'temperature' => 1.0,
-                        'maxOutputTokens' => 2048
+                        'maxOutputTokens' => 2048,
+                        'responseMimeType' => 'application/json'
                     ]
                 ]
             ]);
@@ -352,6 +364,193 @@ class AIController extends Controller
             'message' => 'Word manually added to the AI bank.',
             'vocabulary' => $vocabulary
         ], 201);
+    }
+
+    /**
+     * Generic AI Chat for learners.
+     */
+    public function chat(Request $request)
+    {
+        $request->validate([
+            'message' => 'required|string',
+            'chat_id' => 'nullable|integer|exists:ai_chats,id',
+            'context' => 'nullable|string',
+        ]);
+
+        $apiKey = config('services.gemini.key');
+        if (empty($apiKey)) {
+            return response()->json(['status' => 'error', 'message' => 'AI Service is currently unavailable.'], 503);
+        }
+
+        $user = $request->user();
+        $message = $request->message;
+        $chatId = $request->chat_id;
+        $context = $request->context ?? 'General Learning';
+
+        // Load or Create Chat Thread
+        if ($chatId) {
+            $chat = \App\Models\AIChat::where('id', $chatId)->where('user_id', $user->id)->firstOrFail();
+            $messages = $chat->messages ?? [];
+        } else {
+            $chat = new \App\Models\AIChat();
+            $chat->user_id = $user->id;
+            $chat->title = count(explode(' ', $message)) > 8 ? substr($message, 0, 40) . '...' : $message;
+            $messages = [];
+        }
+
+        // Add User Message
+        $messages[] = ['role' => 'user', 'content' => $message, 'timestamp' => now()->toIso8601String()];
+
+        // Prepare History Context (last 8 messages)
+        $history = array_slice($messages, -10);
+        $historyText = "";
+        foreach ($history as $m) {
+            $historyText .= ($m['role'] === 'user' ? "Student: " : "Assistant: ") . $m['content'] . "\n";
+        }
+
+        $prompt = "You are Inkiito AI, an Elite Tutor for all subjects.
+        Student: {$user->name}
+        Context: $context
+        
+        Recent Conversation History:
+        $historyText
+
+        Rules:
+        1. Professional, encouraging, and clear high-school level explanations.
+        2. Use rich Markdown (headers, lists, bold).
+        3. If requested, generate 3-5 revision questions.
+        4. If you don't know, say so. Stay academic.
+
+        Current Query: $message";
+
+        try {
+            $client = new \GuzzleHttp\Client(['timeout' => 60]);
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+            $response = $client->post($url, [
+                'headers' => [
+                    'x-goog-api-key' => $apiKey,
+                    'Content-Type' => 'application/json'
+                ],
+                'json' => [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => [
+                        'temperature' => 0.7,
+                        'maxOutputTokens' => 2048,
+                    ]
+                ]
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+            $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? "I'm having trouble thinking clearly right now. Please try again.";
+
+            // Save AI Reply
+            $messages[] = ['role' => 'ai', 'content' => $reply, 'timestamp' => now()->toIso8601String()];
+            $chat->messages = $messages;
+            $chat->save();
+
+            return response()->json([
+                'reply' => $reply,
+                'chat_id' => $chat->id,
+                'status' => 'success'
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Gemini Chat Error: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'AI brain is currently recalibrating.'], 500);
+        }
+    }
+
+    /**
+     * List user's past AI chats.
+     */
+    public function getChats(Request $request)
+    {
+        $chats = \App\Models\AIChat::where('user_id', $request->user()->id)
+            ->orderBy('updated_at', 'desc')
+            ->get(['id', 'title', 'updated_at']);
+            
+        return response()->json($chats);
+    }
+
+    /**
+     * Get a specific chat thread.
+     */
+    public function getChat($id, Request $request)
+    {
+        $chat = \App\Models\AIChat::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+            
+        return response()->json($chat);
+    }
+
+    /**
+     * Delete a chat history.
+     */
+    public function deleteChat($id, Request $request)
+    {
+        $chat = \App\Models\AIChat::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+            
+        $chat->delete();
+        return response()->json(['message' => 'Chat history cleared.']);
+    }
+
+    /**
+     * Specialized: Generate revision questions for a specific topic/subject.
+     */
+    public function generateRevision(Request $request)
+    {
+        $request->validate([
+            'topic' => 'required|string',
+            'subject' => 'nullable|string',
+        ]);
+
+        $apiKey = config('services.gemini.key');
+        if (empty($apiKey)) {
+            return response()->json(['status' => 'error', 'message' => 'AI Service is currently unavailable.'], 503);
+        }
+
+        $topic = $request->topic;
+        $subject = $request->subject ?? 'General';
+
+        $prompt = "Act as an Expert Examiner. Generate 5 high-quality revision questions for a high school student on the topic: '$topic' in the subject of '$subject'.
+        Provide a mix of multiple choice and short answer questions.
+        Include the correct answers at the bottom of your response, clearly separated.
+        Format the output nicely using Markdown.";
+
+        try {
+            $client = new \GuzzleHttp\Client(['timeout' => 60]);
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+            $response = $client->post($url, [
+                'headers' => [
+                    'x-goog-api-key' => $apiKey,
+                    'Content-Type' => 'application/json'
+                ],
+                'json' => [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => [
+                        'temperature' => 0.8,
+                        'maxOutputTokens' => 2048,
+                    ]
+                ]
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+            $content = $data['candidates'][0]['content']['parts'][0]['text'] ?? "I couldn't generate the questions right now.";
+
+            return response()->json([
+                'content' => $content,
+                'status' => 'success'
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Gemini Revision Error: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Failed to generate revision questions.'], 500);
+        }
     }
 
     /**

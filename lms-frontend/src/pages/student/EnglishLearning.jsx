@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 
 export default function EnglishLearning() {
@@ -9,6 +10,8 @@ export default function EnglishLearning() {
     const [isLoading, setIsLoading] = useState(false);
     const [spellingInput, setSpellingInput] = useState('');
     const [feedback, setFeedback] = useState(null);
+    const [showHint, setShowHint] = useState(false);
+    const [isFlipped, setIsFlipped] = useState(false);
     const [score, setScore] = useState(0);
     const [progress, setProgress] = useState({ mastered: 0, total: 0 });
 
@@ -37,6 +40,8 @@ export default function EnglishLearning() {
             setWordData(res.data);
             setSpellingInput('');
             setFeedback(null);
+            setShowHint(false);
+            setIsFlipped(false);
         } catch (err) {
             console.error("AI Generation failed", err);
             setWordData(null);
@@ -92,19 +97,28 @@ export default function EnglishLearning() {
 
     const handleSpellingCheck = async (overriddenInput = null) => {
         if (!wordData) return;
-        const input = (overriddenInput !== null ? overriddenInput : spellingInput).toLowerCase().trim();
+        
+        let inputStr = spellingInput;
+        if (typeof overriddenInput === 'string') {
+            inputStr = overriddenInput;
+        }
+        
+        const input = inputStr.toLowerCase().trim();
 
         if (input === wordData.word.toLowerCase()) {
-            setFeedback({ type: 'success', message: 'Perfect! AI confirms your spelling is correct.' });
+            setFeedback({ type: 'success', message: 'Perfect! AI confirms your spelling is correct. 🎉' });
             const newScore = score + 10;
             setScore(newScore);
 
             // Auto-mark as learned if they get it right in Spelling Bee
             await markAsLearned(wordData.id, 10);
 
-            setTimeout(() => generateNewWord(), 1500);
+            setTimeout(() => generateNewWord(), 2000);
         } else {
-            setFeedback({ type: 'error', message: 'Not quite. Try following the phonetic hints!' });
+            setFeedback({ 
+                type: 'error', 
+                message: `Not quite! Hint: The word starts with '${wordData.word[0].toUpperCase()}' and has ${wordData.word.length} letters.` 
+            });
         }
     };
 
@@ -127,16 +141,22 @@ export default function EnglishLearning() {
                         )}
                     </div>
                 </div>
-                <div className="flex bg-gray-100 p-1 rounded-2xl w-full sm:w-fit justify-center shadow-inner">
+                <div className="flex bg-gray-100 p-1 rounded-2xl w-full sm:w-fit justify-center shadow-inner overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('vocabulary')}
-                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'vocabulary' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 sm:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'vocabulary' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         Vocabulary
                     </button>
                     <button
+                        onClick={() => setActiveTab('flashcards')}
+                        className={`px-4 sm:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'flashcards' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Flashcards
+                    </button>
+                    <button
                         onClick={() => setActiveTab('spelling')}
-                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'spelling' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 sm:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'spelling' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         Spelling Bee
                     </button>
@@ -144,13 +164,7 @@ export default function EnglishLearning() {
             </div>
 
             {isLoading && !wordData ? (
-                <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                    <svg className="animate-spin h-10 w-10 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p className="text-gray-500 font-medium uppercase text-sm animate-pulse">AI is spinning new vocabulary...</p>
-                </div>
+                <PageLoader message="Synthesizing New Lexicon..." color="purple" />
             ) : wordData ? (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {activeTab === 'vocabulary' ? (
@@ -186,10 +200,11 @@ export default function EnglishLearning() {
                                     </div>
 
                                     <div className="space-y-4 relative z-10">
-                                        <h3 className="text-xs font-semibold text-gray-400 uppercase">Grammatical Definition</h3>
-                                        <p className="text-lg sm:text-xl md:text-2xl text-gray-700 leading-snug font-medium border-l-4 border-blue-500 pl-4 md:pl-6 py-2">
-                                            {wordData.definition}
-                                        </p>
+                                        <h3 className="text-xs font-semibold text-gray-400 uppercase">Definition & Context</h3>
+                                        <p 
+                                            className="text-lg sm:text-xl md:text-2xl text-gray-700 leading-snug font-medium border-l-4 border-blue-500 pl-4 md:pl-6 py-2"
+                                            dangerouslySetInnerHTML={{ __html: wordData.definition }}
+                                        />
                                     </div>
 
                                     <div className="mt-12 flex flex-col sm:flex-row gap-4">
@@ -237,16 +252,101 @@ export default function EnglishLearning() {
                                 </div>
                             </div>
                         </div>
+                    ) : activeTab === 'flashcards' ? (
+                        <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-right-8 duration-500">
+                            <div className="text-center">
+                                <h2 className="text-xl font-bold text-gray-900">Active Recall</h2>
+                                <p className="text-gray-500 text-sm mt-1">Tap the card to reveal the definition.</p>
+                            </div>
+                            
+                            <div 
+                                className="group relative w-full h-80 sm:h-96 cursor-pointer"
+                                style={{ perspective: '1000px' }}
+                                onClick={() => setIsFlipped(!isFlipped)}
+                            >
+                                <div 
+                                    className={`w-full h-full transition-transform duration-700 rounded-3xl shadow-xl border border-gray-100 ${isFlipped ? 'rotate-y-180' : ''}`}
+                                    style={{ transformStyle: 'preserve-3d', transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+                                >
+                                    {/* Front of Card (The Word) */}
+                                    <div 
+                                        className="absolute inset-0 w-full h-full bg-gradient-to-br from-blue-50 to-white rounded-3xl flex flex-col items-center justify-center p-8 backface-hidden"
+                                        style={{ backfaceVisibility: 'hidden' }}
+                                    >
+                                        <div className="absolute top-6 right-6 text-blue-200">
+                                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" /></svg>
+                                        </div>
+                                        <span className="text-sm font-bold text-blue-600 tracking-widest uppercase mb-4 bg-blue-100 px-3 py-1 rounded-full">{wordData.category}</span>
+                                        <h2 className="text-4xl sm:text-5xl font-black text-gray-900 text-center mb-4">{wordData.word}</h2>
+                                        <p className="text-xl text-gray-400 italic font-medium">{wordData.phonetic}</p>
+                                        <div className="absolute bottom-6 flex items-center justify-center gap-2 text-gray-400 font-semibold text-sm animate-pulse">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+                                            Tap to Flip
+                                        </div>
+                                    </div>
+
+                                    {/* Back of Card (The Definition) */}
+                                    <div 
+                                        className="absolute inset-0 w-full h-full bg-gradient-to-br from-purple-50 to-white rounded-3xl flex flex-col items-center justify-center p-6 sm:p-10 backface-hidden overflow-y-auto"
+                                        style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                                    >
+                                        <h3 className="text-sm font-bold text-purple-600 tracking-widest uppercase mb-6 flex items-center gap-2">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                                            Meaning & Context
+                                        </h3>
+                                        <div 
+                                            className="text-lg sm:text-xl text-gray-700 leading-relaxed font-medium text-center custom-scrollbar"
+                                            dangerouslySetInnerHTML={{ __html: wordData.definition }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Actions beneath Flashcard */}
+                            <div className="flex gap-4">
+                                <Button 
+                                    variant="outline"
+                                    className="flex-1 py-4 text-base font-bold bg-white border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm"
+                                    onClick={generateNewWord}
+                                >
+                                    Needs Review
+                                </Button>
+                                <Button 
+                                    className="flex-1 py-4 text-base font-bold bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-200"
+                                    onClick={() => {
+                                        markAsLearned(wordData.id, 10);
+                                        setTimeout(() => generateNewWord(), 800);
+                                    }}
+                                >
+                                    Got It!
+                                </Button>
+                            </div>
+                        </div>
                     ) : (
                         <div className="max-w-2xl mx-auto">
                             <Card className="text-center py-5 shadow-sm relative overflow-hidden ring-4 ring-blue-50">
                                 <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-blue-600 to-purple-600"></div>
 
-                                <div className="mb-10">
+                                <div className="mb-8">
                                     <h2 className="text-lg font-bold text-gray-900">AI Spelling Bee</h2>
                                     <p className="text-gray-500 font-medium">Type the word precisely as the AI pronounces it.</p>
                                     <div className="mt-4 flex justify-center gap-4">
                                         <div className="bg-blue-600 text-white px-5 py-2 rounded-full text-xs font-semibold shadow-lg shadow-blue-200">Session Score: {score}</div>
+                                    </div>
+                                    
+                                    <div className="mt-4 flex flex-col items-center gap-2">
+                                        <button 
+                                            onClick={() => setShowHint(!showHint)} 
+                                            className={`text-xs font-bold px-4 py-1.5 rounded-full transition-all shadow-sm ${showHint ? 'bg-amber-100 text-amber-700' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-blue-600'}`}
+                                        >
+                                            {showHint ? "Hide Hint" : "Need a hint?"}
+                                        </button>
+                                        {showHint && (
+                                            <div className="mt-2 text-sm font-medium text-amber-800 bg-amber-50 p-4 rounded-xl border border-amber-100 italic w-full animate-in fade-in zoom-in-95 leading-relaxed text-left">
+                                                <span className="font-bold uppercase text-[10px] text-amber-600 tracking-wider block mb-1">Definition/Meaning</span>
+                                                <div dangerouslySetInnerHTML={{ __html: wordData.definition }} />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -293,8 +393,8 @@ export default function EnglishLearning() {
                                         )}
                                     </div>
 
-                                    <div className="flex gap-4 pt-10">
-                                        <Button className="flex-1 py-5 text-sm font-semibold rounded-2xl" onClick={handleSpellingCheck}>Verify Spelling</Button>
+                                    <div className="flex gap-4 pt-8">
+                                        <Button className="flex-1 py-5 text-lg font-bold rounded-2xl shadow-md" onClick={() => handleSpellingCheck()}>Verify Spelling</Button>
                                         <button
                                             onClick={generateNewWord}
                                             className="px-5 font-bold text-gray-400 hover:text-blue-600 transition-colors"

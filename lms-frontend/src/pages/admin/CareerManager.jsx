@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -14,11 +15,14 @@ export default function CareerManager() {
     const { showNotification, askConfirmation } = useNotification();
     const [activeTab, setActiveTab] = useState('careers'); // 'careers' | 'pathways'
 
-    const [isEditing, setIsEditing] = useState(null); // ID or 'new'
+    // Form States
+    const [isEditingCareer, setIsEditingCareer] = useState(null); // ID or 'new'
     const [isEditingPathway, setIsEditingPathway] = useState(null); // ID or 'new'
+    const [isEditingTrack, setIsEditingTrack] = useState(null); // {id, pathway_id} or 'new'
 
-    const [formData, setFormData] = useState({
+    const [careerForm, setCareerForm] = useState({
         pathway_id: '',
+        career_track_id: '',
         name: '',
         description: '',
         salary_range: '',
@@ -26,7 +30,7 @@ export default function CareerManager() {
         qualifications: '',
         skills: '',
         typical_employers: '',
-        subjects: [] // {id, is_mandatory}
+        subjects: []
     });
 
     const [pathwayForm, setPathwayForm] = useState({
@@ -34,6 +38,12 @@ export default function CareerManager() {
         description: '',
         color_code: 'blue',
         icon: ''
+    });
+
+    const [trackForm, setTrackForm] = useState({
+        pathway_id: '',
+        name: '',
+        description: ''
     });
 
     useEffect(() => {
@@ -58,22 +68,7 @@ export default function CareerManager() {
         }
     };
 
-    const handleSave = async (e) => {
-        e.preventDefault();
-        try {
-            if (isEditing === 'new') {
-                await api.post('careers', formData);
-            } else {
-                await api.put(`careers/${isEditing}`, formData);
-            }
-            setIsEditing(null);
-            fetchData();
-            showNotification("Career updated successfully.", "success");
-        } catch (err) {
-            showNotification("Save failed", "error");
-        }
-    };
-
+    // --- Pathway Actions ---
     const handleSavePathway = async (e) => {
         e.preventDefault();
         try {
@@ -84,388 +79,327 @@ export default function CareerManager() {
             }
             setIsEditingPathway(null);
             fetchData();
-            showNotification("Pathway updated.", "success");
+            showNotification("Pathway updated successfully.", "success");
         } catch (err) {
             showNotification("Save failed", "error");
         }
     };
 
-    const handleDelete = async (id) => {
-        const confirmed = await askConfirmation("Delete this career?", "Confirm Action");
-        if (!confirmed) return;
-        try {
-            await api.delete(`careers/${id}`);
-            fetchData();
-            showNotification("Career deleted.", "success");
-        } catch (err) {
-            showNotification("Delete failed", "error");
-        }
-    };
-
     const handleDeletePathway = async (id) => {
-        const confirmed = await askConfirmation("Delete this pathway? This will fail if it has careers attached.", "Delete Pathway?");
+        const confirmed = await askConfirmation("Delete this pathway? All tracks and careers will be affected.", "Destroy Pathway?");
         if (!confirmed) return;
         try {
             await api.delete(`pathways/${id}`);
             fetchData();
-            showNotification("Pathway removed.", "success");
         } catch (err) {
             showNotification(err.response?.data?.message || "Delete failed", "error");
         }
     };
 
-    const openEditPathway = (p) => {
-        if (p) {
-            setPathwayForm({
-                name: p.name,
-                description: p.description || '',
-                color_code: p.color_code || 'blue',
-                icon: p.icon || ''
-            });
-            setIsEditingPathway(p.id);
-        } else {
-            setPathwayForm({
-                name: '',
-                description: '',
-                color_code: 'blue',
-                icon: ''
-            });
-            setIsEditingPathway('new');
+    // --- Track Actions ---
+    const handleSaveTrack = async (e) => {
+        e.preventDefault();
+        try {
+            if (isEditingTrack === 'new') {
+                await api.post('career-tracks', trackForm);
+            } else {
+                await api.put(`career-tracks/${isEditingTrack.id}`, trackForm);
+            }
+            setIsEditingTrack(null);
+            fetchData();
+            showNotification("Track saved.", "success");
+        } catch (err) {
+            showNotification("Save failed", "error");
         }
     };
 
-    const openEdit = (career) => {
-        if (career) {
-            setFormData({
-                pathway_id: career.pathway_id,
-                name: career.name,
-                description: career.description,
-                salary_range: career.salary_range || '',
-                outlook: career.outlook || 'Steady',
-                qualifications: career.qualifications || '',
-                skills: career.skills || '',
-                typical_employers: career.typical_employers || '',
-                subjects: career.subjects.map(s => ({ id: s.id, is_mandatory: !!s.pivot?.is_mandatory }))
-            });
-            setIsEditing(career.id);
-        } else {
-            setFormData({
-                pathway_id: pathways[0]?.id || '',
-                name: '',
-                description: '',
-                salary_range: '',
-                outlook: 'Steady',
-                qualifications: '',
-                skills: '',
-                typical_employers: '',
-                subjects: []
-            });
-            setIsEditing('new');
+    const handleDeleteTrack = async (id) => {
+        const confirmed = await askConfirmation("Delete this track? Careers using it will be unassigned.", "Delete Track?");
+        if (!confirmed) return;
+        try {
+            await api.delete(`career-tracks/${id}`);
+            fetchData();
+        } catch (err) {
+            showNotification(err.response?.data?.message || "Delete failed", "error");
+        }
+    };
+
+    // --- Career Actions ---
+    const handleSaveCareer = async (e) => {
+        e.preventDefault();
+        try {
+            if (isEditingCareer === 'new') {
+                await api.post('careers', careerForm);
+            } else {
+                await api.put(`careers/${isEditingCareer}`, careerForm);
+            }
+            setIsEditingCareer(null);
+            fetchData();
+            showNotification("Career commited to repository.", "success");
+        } catch (err) {
+            showNotification("Save failed", "error");
         }
     };
 
     const toggleSubject = (subId) => {
-        const exists = formData.subjects.find(s => s.id === subId);
+        const exists = careerForm.subjects.find(s => s.id === subId);
         if (exists) {
-            setFormData({ ...formData, subjects: formData.subjects.filter(s => s.id !== subId) });
+            setCareerForm({ ...careerForm, subjects: careerForm.subjects.filter(s => s.id !== subId) });
         } else {
-            setFormData({ ...formData, subjects: [...formData.subjects, { id: subId, is_mandatory: false }] });
+            setCareerForm({ ...careerForm, subjects: [...careerForm.subjects, { id: subId, is_mandatory: false }] });
         }
     };
 
-    const setMandatory = (subId, val) => {
-        setFormData({
-            ...formData,
-            subjects: formData.subjects.map(s => s.id === subId ? { ...s, is_mandatory: val } : s)
-        });
-    };
-
-    if (isLoading) return <div className="p-6 text-center font-semibold text-gray-400">Loading Career Repository...</div>;
+    if (isLoading) return <PageLoader message="Architecting Career Hierarchy..." color="blue" />;
 
     return (
-        <div className="space-y-4 pb-20">
-            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 gap-6">
-                <div className="w-full lg:w-auto">
-                    <h1 className="text-xl font-black text-gray-900 tracking-tight">Career & Pathway Governance</h1>
-                    <p className="text-gray-500 font-bold uppercase text-[10px] mt-1 tracking-wider opacity-70">Map subjects to future career qualifications</p>
+        <div className="space-y-6 pb-20">
+            {/* Contextual Header */}
+            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100 gap-6">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">Governance: Career Focus</h1>
+                    <p className="text-gray-400 font-bold uppercase text-[10px] mt-1 tracking-widest leading-none">Pillars, Tracks & Professional Paths</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto">
-                    {!isEditing && !isEditingPathway && (
-                        <div className="flex bg-gray-100/80 p-1 rounded-xl sm:rounded-2xl shrink-0">
-                            <button
-                                onClick={() => setActiveTab('careers')}
-                                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase transition-all ${activeTab === 'careers' ? 'bg-white text-school-primary shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            >
-                                Careers
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('pathways')}
-                                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase transition-all ${activeTab === 'pathways' ? 'bg-white text-school-primary shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            >
-                                Pathways
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                        {!isEditing && !isEditingPathway && currentUser?.role !== 'teacher' && (
-                            <Button
-                                className="w-full sm:w-auto py-3.5 sm:py-2 px-6 text-[10px] font-black uppercase tracking-widest bg-school-primary shadow-lg shadow-red-100"
-                                onClick={() => activeTab === 'careers' ? openEdit(null) : openEditPathway(null)}
-                            >
-                                <span className="sm:hidden">+ New {activeTab === 'careers' ? 'Career' : 'Pathway'}</span>
-                                <span className="hidden sm:inline">+ Launch New {activeTab === 'careers' ? 'Career' : 'Pathway'}</span>
-                            </Button>
-                        )}
-                        {(isEditing || isEditingPathway) && (
-                            <Button
-                                variant="outline"
-                                className="w-full sm:w-auto py-3.5 sm:py-2 px-6 text-[10px] font-black uppercase tracking-widest border-2 border-gray-200"
-                                onClick={() => { setIsEditing(null); setIsEditingPathway(null); }}
-                            >
-                                Cancel Edit
-                            </Button>
-                        )}
-                    </div>
+                <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full lg:w-auto">
+                    <button onClick={() => setActiveTab('careers')} className={`flex-1 lg:flex-none px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'careers' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Careers</button>
+                    <button onClick={() => setActiveTab('pathways')} className={`flex-1 lg:flex-none px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'pathways' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Setup Pathways</button>
                 </div>
             </header>
 
-            {activeTab === 'careers' && isEditing ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in fade-in zoom-in-95">
-                    <Card title="Career Definition">
-                        <form onSubmit={handleSave} className="space-y-6">
-                            <div className="space-y-4">
-                                <label className="text-xs font-semibold text-gray-400">Career Title</label>
-                                <input
-                                    required
-                                    className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                />
+            {activeTab === 'careers' ? (
+                <div className="space-y-6">
+                    {!isEditingCareer ? (
+                        <>
+                            <div className="flex justify-end">
+                                <Button onClick={() => {
+                                    setCareerForm({ pathway_id: pathways[0]?.id || '', career_track_id: '', name: '', description: '', salary_range: '', outlook: 'Steady', qualifications: '', skills: '', typical_employers: '', subjects: [] });
+                                    setIsEditingCareer('new');
+                                }} className="px-8 bg-gray-900 border-none shadow-xl shadow-gray-200 uppercase text-[10px] font-black tracking-widest">+ New Career Path</Button>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400">Pathway</label>
-                                    <select
-                                        className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                        value={formData.pathway_id}
-                                        onChange={(e) => setFormData({ ...formData, pathway_id: e.target.value })}
-                                    >
-                                        {pathways.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400">Outlook</label>
-                                    <select
-                                        className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                        value={formData.outlook}
-                                        onChange={(e) => setFormData({ ...formData, outlook: e.target.value })}
-                                    >
-                                        <option>Steady</option>
-                                        <option>Growth</option>
-                                        <option>High Growth</option>
-                                        <option>Disruptive</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-gray-400">Salary Range (e.g. KSh 100k - 200k)</label>
-                                <input
-                                    className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                    value={formData.salary_range}
-                                    onChange={(e) => setFormData({ ...formData, salary_range: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-gray-400">Job Description</label>
-                                <textarea
-                                    className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-24"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-gray-400">Minimum Qualifications</label>
-                                <textarea
-                                    className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-24"
-                                    placeholder="Degree in Computer Science, etc."
-                                    value={formData.qualifications}
-                                    onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-gray-400">Core Skills</label>
-                                <textarea
-                                    className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-24"
-                                    placeholder="Problem Solving, Coding, Teamwork..."
-                                    value={formData.skills}
-                                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-gray-400">Typical Employers</label>
-                                <input
-                                    className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                    placeholder="Tech Companies, Banks, Government..."
-                                    value={formData.typical_employers}
-                                    onChange={(e) => setFormData({ ...formData, typical_employers: e.target.value })}
-                                />
-                            </div>
-
-                            <Button type="submit" className="w-full py-5 text-sm uppercase shadow-sm">Commit Career Map</Button>
-                        </form>
-                    </Card>
-
-                    <Card title="Subject Prerequisites">
-                        <div className="space-y-4">
-                            <p className="text-xs text-gray-500 font-medium">Select the mandatory and recommended subjects for this career.</p>
-                            <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                                {subjects.map(s => {
-                                    const mapping = formData.subjects.find(ms => ms.id === s.id);
-                                    return (
-                                        <div key={s.id} className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${mapping ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-transparent opacity-60 hover:opacity-100'}`}>
-                                            <div className="flex items-center gap-4">
-                                                <input
-                                                    type="checkbox"
-                                                    className="w-5 h-5 accent-indigo-600 cursor-pointer"
-                                                    checked={!!mapping}
-                                                    onChange={() => toggleSubject(s.id)}
-                                                />
-                                                <span className="font-black text-sm text-gray-800">{s.name}</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {careers.map(career => (
+                                    <div key={career.id} className="bg-white p-6 rounded-[2rem] border border-gray-50 shadow-sm group hover:shadow-xl transition-all">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <span className={`px-3 py-1 bg-gray-50 text-gray-900 rounded-full text-[9px] font-black uppercase tracking-widest border border-gray-100`}>
+                                                {career.pathway.name}
+                                            </span>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => {
+                                                    setCareerForm({
+                                                        pathway_id: career.pathway_id,
+                                                        career_track_id: career.career_track_id || '',
+                                                        name: career.name,
+                                                        description: career.description,
+                                                        salary_range: career.salary_range || '',
+                                                        outlook: career.outlook || 'Steady',
+                                                        qualifications: career.qualifications || '',
+                                                        skills: career.skills || '',
+                                                        typical_employers: career.typical_employers || '',
+                                                        subjects: career.subjects.map(s => ({ id: s.id, is_mandatory: !!s.pivot?.is_mandatory }))
+                                                    });
+                                                    setIsEditingCareer(career.id);
+                                                }} className="p-2.5 bg-gray-50 text-gray-400 hover:bg-gray-900 hover:text-white rounded-xl transition-all">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                                </button>
+                                                <button onClick={() => {
+                                                    askConfirmation("Delete this career?", "Confirm Action").then(ok => {
+                                                        if(ok) api.delete(`careers/${career.id}`).then(() => fetchData());
+                                                    });
+                                                }} className="p-2.5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
                                             </div>
-                                            {mapping && (
-                                                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
-                                                    <button
-                                                        onClick={() => setMandatory(s.id, true)}
-                                                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${mapping.is_mandatory ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
-                                                    >
-                                                        Mandatory
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setMandatory(s.id, false)}
-                                                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!mapping.is_mandatory ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}
-                                                    >
-                                                        Optional
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
-                                    );
-                                })}
+                                        <h3 className="text-lg font-black text-gray-900 tracking-tight italic uppercase mb-1">{career.name}</h3>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">{career.career_track?.name || 'General Core'}</p>
+                                        <div className="flex flex-wrap gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                            {career.subjects.slice(0, 3).map(s => (
+                                                <span key={s.id} className="px-2 py-1 bg-gray-100 rounded-md text-[8px] font-black uppercase text-gray-600">{s.name}</span>
+                                            ))}
+                                            {career.subjects.length > 3 && <span className="text-[8px] font-black text-gray-400">+{career.subjects.length - 3}</span>}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
+                        </>
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-bottom-5 duration-500">
+                            <Card title="Professional Definition">
+                                <form onSubmit={handleSaveCareer} className="space-y-6">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Job Title</label>
+                                        <input required className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-gray-900 rounded-2xl outline-none font-black text-gray-900" value={careerForm.name} onChange={(e) => setCareerForm({ ...careerForm, name: e.target.value })} />
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Foundation Pillar</label>
+                                            <select className="w-full p-4 bg-gray-50 rounded-2xl font-black text-gray-900 outline-none" value={careerForm.pathway_id} onChange={(e) => setCareerForm({ ...careerForm, pathway_id: e.target.value, career_track_id: '' })}>
+                                                {pathways.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Specialty Track</label>
+                                            <select className="w-full p-4 bg-gray-50 rounded-2xl font-black text-gray-900 outline-none" value={careerForm.career_track_id} onChange={(e) => setCareerForm({ ...careerForm, career_track_id: e.target.value })}>
+                                                <option value="">Select a Track</option>
+                                                {pathways.find(p => p.id == careerForm.pathway_id)?.tracks?.map(t => (
+                                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Contextual Description</label>
+                                        <textarea required className="w-full p-4 bg-gray-50 rounded-2xl font-bold h-32 outline-none" value={careerForm.description} onChange={(e) => setCareerForm({ ...careerForm, description: e.target.value })} />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Salary Indication</label>
+                                            <input placeholder="KSh 100k - 300k" className="w-full p-4 bg-gray-50 rounded-2xl font-black outline-none" value={careerForm.salary_range} onChange={(e) => setCareerForm({ ...careerForm, salary_range: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Outlook</label>
+                                            <select className="w-full p-4 bg-gray-50 rounded-2xl font-black outline-none" value={careerForm.outlook} onChange={(e) => setCareerForm({ ...careerForm, outlook: e.target.value })}>
+                                                <option>Steady</option>
+                                                <option>Growth</option>
+                                                <option>High Growth</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <Button type="button" variant="outline" onClick={() => setIsEditingCareer(null)} className="flex-1 py-4 border-2 border-gray-100 uppercase text-[10px] font-black">Discard</Button>
+                                        <Button type="submit" className="flex-1 py-4 bg-gray-900 border-none uppercase text-[10px] font-black tracking-widest">Commit Path</Button>
+                                    </div>
+                                </form>
+                            </Card>
+
+                            <Card title="Academic Prerequisites">
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Select relevant subjects</p>
+                                    <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                                        {subjects.map(s => {
+                                            const mapping = careerForm.subjects.find(ms => ms.id === s.id);
+                                            return (
+                                                <div key={s.id} className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${mapping ? 'bg-gray-900 border-gray-900' : 'bg-gray-50 border-transparent'}`}>
+                                                    <div className="flex items-center gap-4">
+                                                        <input type="checkbox" className="w-5 h-5 accent-gray-400 cursor-pointer" checked={!!mapping} onChange={() => toggleSubject(s.id)} />
+                                                        <span className={`font-black text-[12px] uppercase ${mapping ? 'text-white' : 'text-gray-900'}`}>{s.name}</span>
+                                                    </div>
+                                                    {mapping && (
+                                                        <div className="flex bg-gray-800 p-1 rounded-xl shadow-inner">
+                                                            <button onClick={() => setCareerForm({...careerForm, subjects: careerForm.subjects.map(sub => sub.id === s.id ? {...sub, is_mandatory: true} : sub)})} className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${mapping.is_mandatory ? 'bg-white text-gray-900 shadow-xl' : 'text-gray-400'}`}>Mandatory</button>
+                                                            <button onClick={() => setCareerForm({...careerForm, subjects: careerForm.subjects.map(sub => sub.id === s.id ? {...sub, is_mandatory: false} : sub)})} className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${!mapping.is_mandatory ? 'bg-white text-gray-900 shadow-xl' : 'text-gray-400'}`}>Recommended</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </Card>
                         </div>
-                    </Card>
+                    )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {careers.map(career => (
-                        <Card key={career.id} className="group hover:border-indigo-100 transition-all cursor-default">
-                            <div className="flex justify-between items-start mb-6">
-                                <span className={`px-3 py-1 bg-${career.pathway.color_code}-50 text-${career.pathway.color_code}-600 rounded-full text-xs font-semibold`}>
-                                    {career.pathway.name}
-                                </span>
-                                {currentUser?.role !== 'teacher' && (
-                                    <div className="flex gap-2">
-                                        <button onClick={() => openEdit(career)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                                        </button>
-                                        <button onClick={() => handleDelete(career.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
+                <div className="space-y-8 animate-in fade-in duration-500">
+                    <div className="flex justify-end">
+                        <Button onClick={() => { setPathwayForm({ name: '', description: '', color_code: 'blue', icon: '' }); setIsEditingPathway('new'); }} className="px-8 bg-gray-900 border-none uppercase text-[10px] font-black tracking-widest">+ Define New Pillar</Button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+                        {pathways.map(p => (
+                            <div key={p.id} className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-2xl transition-all duration-500">
+                                <div className="p-8 pb-4">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className={`w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center text-white shadow-xl rotate-3`}>
+                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setPathwayForm({ name: p.name, description: p.description, color_code: p.color_code, icon: p.icon }); setIsEditingPathway(p.id); }} className="p-2 text-gray-400 hover:text-gray-900 transition-colors">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                            </button>
+                                            <button onClick={() => handleDeletePathway(p.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                            <h3 className="text-sm font-semibold text-gray-900 mb-2">{career.name}</h3>
-                            <div className="space-y-4">
-                                <div className="flex flex-wrap gap-1.5">
-                                    {career.subjects.map(s => (
-                                        <span key={s.id} className={`text-[8px] font-semibold px-2 py-1 rounded-md border ${s.pivot.is_mandatory ? 'border-red-100 text-red-600 bg-red-50' : 'border-emerald-100 text-emerald-600 bg-emerald-50'}`}>
-                                            {s.name}
-                                        </span>
-                                    ))}
+                                    <h3 className="text-xl font-black text-gray-900 uppercase italic tracking-tighter mb-2">{p.name}</h3>
+                                    <p className="text-sm text-gray-500 font-bold leading-relaxed line-clamp-3 mb-6">{p.description}</p>
+                                    
+                                    <div className="border-t border-gray-100 pt-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-[10px] font-black uppercase text-gray-900 tracking-widest">Tracks within Pillar</h4>
+                                            <button onClick={() => { setTrackForm({ pathway_id: p.id, name: '', description: '' }); setIsEditingTrack('new'); }} className="text-[10px] font-black text-school-primary uppercase hover:scale-105 transition-transform">+ Add Track</button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {p.tracks?.map(t => (
+                                                <div key={t.id} className="group/track flex items-center justify-between bg-gray-50 p-4 rounded-2xl hover:bg-gray-100 transition-all">
+                                                    <span className="text-[11px] font-black text-gray-900 uppercase italic">{t.name}</span>
+                                                    <div className="flex gap-2 opacity-0 group-hover/track:opacity-100 transition-opacity">
+                                                        <button onClick={() => { setTrackForm({ pathway_id: p.id, name: t.name, description: t.description }); setIsEditingTrack(t); }} className="p-1.5 text-gray-400 hover:text-gray-900"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                                        <button onClick={() => handleDeleteTrack(t.id)} className="p-1.5 text-gray-400 hover:text-red-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </Card>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {activeTab === 'pathways' && (
-                isEditingPathway ? (
-                    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
-                        <Card title={isEditingPathway === 'new' ? "New Pathway" : "Edit Pathway"}>
-                            <form onSubmit={handleSavePathway} className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400">Pathway Name</label>
-                                    <input
-                                        required
-                                        className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                        value={pathwayForm.name}
-                                        onChange={(e) => setPathwayForm({ ...pathwayForm, name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400">Color Code (Tailwind brand color)</label>
-                                    <select
-                                        className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold"
-                                        value={pathwayForm.color_code}
-                                        onChange={(e) => setPathwayForm({ ...pathwayForm, color_code: e.target.value })}
-                                    >
-                                        <option value="blue">Blue (STEM)</option>
-                                        <option value="emerald">Emerald (Social Science)</option>
-                                        <option value="amber">Amber (Arts)</option>
-                                        <option value="indigo">Indigo</option>
-                                        <option value="rose">Rose</option>
-                                        <option value="violet">Violet</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-400">Description</label>
-                                    <textarea
-                                        className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-medium h-32"
-                                        value={pathwayForm.description}
-                                        onChange={(e) => setPathwayForm({ ...pathwayForm, description: e.target.value })}
-                                    />
-                                </div>
-                                <Button type="submit" className="w-full py-4 shadow-lg shadow-indigo-100 text-xs">Save Pathway</Button>
-                            </form>
-                        </Card>
+            {/* MODALS */}
+            
+            {/* Pathway Modal */}
+            {isEditingPathway && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] w-full max-w-xl p-10 shadow-2xl animate-in zoom-in-95 duration-500">
+                        <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic mb-8">{isEditingPathway === 'new' ? 'Initialize Pillar' : 'Refine Pillar'}</h2>
+                        <form onSubmit={handleSavePathway} className="space-y-8">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Pillar Identity</label>
+                                <input required className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-black text-gray-900 text-lg" value={pathwayForm.name} onChange={(e) => setPathwayForm({...pathwayForm, name: e.target.value})} placeholder="e.g. STEM" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Manifesto / Description</label>
+                                <textarea required className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-bold text-gray-800 h-32" value={pathwayForm.description} onChange={(e) => setPathwayForm({...pathwayForm, description: e.target.value})} placeholder="Describe the mission of this pathway..." />
+                            </div>
+                            <div className="flex gap-4">
+                                <Button type="button" variant="outline" onClick={() => setIsEditingPathway(null)} className="flex-1 py-5 rounded-2xl border-2 border-gray-100 uppercase text-[10px] font-black">Abort</Button>
+                                <Button type="submit" className="flex-1 py-5 rounded-2xl bg-gray-900 border-none uppercase text-[10px] font-black tracking-widest shadow-xl shadow-gray-200">Commit Pillar</Button>
+                            </div>
+                        </form>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {pathways.map(p => (
-                            <Card key={p.id} className={`border-l-8 border-${p.color_code}-500 hover:shadow-md transition-shadow`}>
-                                <div className="flex justify-between items-start mb-4">
-                                    <h3 className="text-sm font-semibold text-gray-900">{p.name}</h3>
-                                    {currentUser?.role !== 'teacher' && (
-                                        <div className="flex gap-2">
-                                            <button onClick={() => openEditPathway(p)} className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                                            </button>
-                                            <button onClick={() => handleDeletePathway(p.id)} className="p-2 bg-gray-50 text-gray-400 hover:text-red-600 rounded-lg transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.1" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <p className="text-xs text-gray-500 font-medium line-clamp-3 mb-4">{p.description}</p>
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-3 h-3 rounded-full bg-${p.color_code}-500`} />
-                                    <span className="text-xs font-semibold uppercase text-gray-400">
-                                        {careers.filter(c => c.pathway_id === p.id).length} Careers Linked
-                                    </span>
-                                </div>
-                            </Card>
-                        ))}
+                </div>
+            )}
+
+            {/* Track Modal */}
+            {isEditingTrack && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] w-full max-w-xl p-10 shadow-2xl animate-in zoom-in-95 duration-500">
+                        <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic mb-8">{isEditingTrack === 'new' ? 'Deploy Specialty Track' : 'Update Track'}</h2>
+                        <form onSubmit={handleSaveTrack} className="space-y-8">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Track Designation</label>
+                                <input required className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-black text-gray-900 text-lg" value={trackForm.name} onChange={(e) => setTrackForm({...trackForm, name: e.target.value})} placeholder="e.g. Robotics & AI" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Specialization Focus</label>
+                                <textarea className="w-full p-5 bg-gray-50 rounded-3xl outline-none font-bold text-gray-800 h-32" value={trackForm.description} onChange={(e) => setTrackForm({...trackForm, description: e.target.value})} placeholder="Focus areas for this track..." />
+                            </div>
+                            <div className="flex gap-4">
+                                <Button type="button" variant="outline" onClick={() => setIsEditingTrack(null)} className="flex-1 py-5 rounded-2xl border-2 border-gray-100 uppercase text-[10px] font-black">Cancel</Button>
+                                <Button type="submit" className="flex-1 py-5 rounded-2xl bg-gray-900 border-none uppercase text-[10px] font-black tracking-widest shadow-xl shadow-school-primary/10">Launch Track</Button>
+                            </div>
+                        </form>
                     </div>
-                )
+                </div>
             )}
         </div>
     );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 
 export default function AdminGrades() {
@@ -55,6 +56,8 @@ export default function AdminGrades() {
         s.admission.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    if (isLoading) return <PageLoader message="Analyzing Academic Performance..." color="blue" />;
+    
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">

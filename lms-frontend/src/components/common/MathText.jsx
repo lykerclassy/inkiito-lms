@@ -1,6 +1,10 @@
 import React from 'react';
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
+import { marked } from 'marked';
+
+// Configure marked
+marked.setOptions({ breaks: true, gfm: true });
 
 const MathText = ({ text, className = "" }) => {
     if (!text) return null;
@@ -55,7 +59,7 @@ const MathText = ({ text, className = "" }) => {
                     }
                 }
 
-                return <span key={i} className="whitespace-pre-wrap">{content}</span>;
+                return <span key={i} className="whitespace-pre-wrap inline-block w-full" dangerouslySetInnerHTML={{ __html: marked(content) }} />;
             })}
         </span>
     );

@@ -130,6 +130,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Subject::class, 'subject_teacher')->withTimestamps();
     }
 
+    public function communities()
+    {
+        return $this->belongsToMany(Community::class);
+    }
+
     /**
      * Get the student's avatar URL.
      * Ensures consistent URLs across all environments.

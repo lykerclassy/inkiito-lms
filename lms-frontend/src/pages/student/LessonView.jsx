@@ -5,7 +5,15 @@ import html2pdf from 'html2pdf.js';
 import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import { CardSkeleton } from '../../components/common/Skeleton';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
+import renderMathInElement from 'katex/dist/contrib/auto-render';
+
+// Provide global access for contrib scripts
+window.katex = katex;
+window.renderMathInElement = renderMathInElement;
 
 export default function LessonView() {
     const { id } = useParams();
@@ -19,6 +27,16 @@ export default function LessonView() {
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
     const [quizState, setQuizState] = useState({});
+
+    // Silence the findDOMNode warning in development to keep the console clean
+    useEffect(() => {
+        const originalError = console.error;
+        console.error = (...args) => {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('findDOMNode')) return;
+            originalError.apply(console, args);
+        };
+        return () => { console.error = originalError; };
+    }, []);
 
     useEffect(() => {
         const fetchLesson = async () => {
@@ -55,7 +73,7 @@ export default function LessonView() {
         };
         fetchLesson();
 
-        // Load TikTok Embed Script if not already present
+        // Load TikTok Embed Script
         if (!document.getElementById('tiktok-embed-script')) {
             const script = document.createElement('script');
             script.id = 'tiktok-embed-script';
@@ -63,7 +81,35 @@ export default function LessonView() {
             script.async = true;
             document.head.appendChild(script);
         }
+
+        // Load KaTeX mhchem for chemical equations
+        if (!document.getElementById('katex-mhchem-script')) {
+            const script = document.createElement('script');
+            script.id = 'katex-mhchem-script';
+            script.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/mhchem.min.js';
+            script.async = true;
+            document.head.appendChild(script);
+        }
     }, [id]);
+
+    // Re-render math when blocks change
+    useEffect(() => {
+        if (blocks.length > 0 && typeof window.renderMathInElement === 'function') {
+            // Target the main lesson container to find all math symbols
+            const container = document.getElementById('lesson-blocks-container');
+            if (container) {
+                window.renderMathInElement(container, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '$', right: '$', display: false },
+                        { left: '\\(', right: '\\)', display: false },
+                        { left: '\\[', right: '\\]', display: true }
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+    }, [blocks]);
 
     const handleQuizSubmit = async (blockId, selectedOption, correctAnswer) => {
         if (quizState[blockId]) return;
@@ -94,7 +140,13 @@ export default function LessonView() {
         const getProxiedUrl = (url) => {
             if (!url) return '';
             const fixedUrl = getMediaUrl(url);
-            if (fixedUrl.startsWith('data:') || fixedUrl.startsWith('blob:') || fixedUrl.startsWith('/')) return fixedUrl;
+            
+            // Skip proxy for local development URLs (proxy can't see your local machine)
+            const isLocalAsset = fixedUrl.includes('localhost') || fixedUrl.includes('127.0.0.1');
+
+            if (fixedUrl.startsWith('data:') || fixedUrl.startsWith('blob:') || fixedUrl.startsWith('/') || isLocalAsset) {
+                return fixedUrl;
+            }
             return `https://corsproxy.io/?${encodeURIComponent(fixedUrl)}`;
         };
 
@@ -111,66 +163,297 @@ export default function LessonView() {
         };
 
         // Tailwind v4 uses OKLCH color domains which natively crash html2canvas when reading ComputedStyles.
-        // Solution: We compile a pure HTML DOM exclusively for the PDF engine.
+        // Solution: We compile a pure HTML DOM exclusively for the PDF engine with academic standards.
         let htmlContent = `
-            <div style="padding: 40px; background-color: white; font-family: 'Times New Roman', Times, serif; color: black; border: 2px solid black; box-sizing: border-box;">
-                ${schoolSettings?.logo_url ? `<img src="${getProxiedUrl(schoolSettings.logo_url)}" crossorigin="anonymous" style="height: 100px; display: block; margin: 0 auto 16px; filter: grayscale(100%);" />` : ''}
-                <div style="text-align: center; border-bottom: 3px double black; margin-bottom: 30px; padding-bottom: 20px;">
-                    <h1 style="text-transform: uppercase; font-size: 24pt; margin: 0 0 10px; font-weight: bold; letter-spacing: 2px;">${schoolSettings?.school_name || "Academic Institution"}</h1>
-                    <h2 style="font-style: italic; font-size: 16pt; margin: 0 0 10px; font-weight: bold;">Lesson Notes: ${lesson.title}</h2>
-                    <p style="font-size: 11pt; margin: 0;">${new Date().toLocaleDateString()}</p>
-                </div>
-                
+            <html>
+            <head>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
                 <style>
-                    .pdf-text { font-size: 14pt; line-height: 1.6; }
-                    .pdf-text h1 { font-size: 24pt; font-weight: bold; margin-bottom: 20px; border-bottom: 1px solid black; padding-bottom: 5px; margin-top: 30px; }
-                    .pdf-text h2 { font-size: 18pt; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid black; padding-bottom: 5px; margin-top: 25px; }
-                    .pdf-text h3 { font-size: 14pt; font-weight: bold; margin-top: 20px; margin-bottom: 10px; }
-                    .pdf-text p { margin-bottom: 15px; }
-                    .pdf-text ul, .pdf-text ol { margin-bottom: 15px; padding-left: 30px; }
-                    .pdf-text li { margin-bottom: 8px; }
-                    .pdf-text blockquote { border-left: 4px solid #000; padding: 10px 20px; font-style: italic; background-color: #f9f9f9; margin: 20px 0; }
-                    .pdf-text pre { background-color: #f0f0f0; padding: 15px; font-family: monospace; font-size: 11pt; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #ccc; margin: 20px 0; border-radius: 4px; }
-                    .pdf-text code { font-family: monospace; font-size: 11pt; background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px; color: #d32f2f; }
-                    .pdf-text img { max-width: 100%; height: auto; }
+                    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;700&display=swap');
+                    
+                    body { 
+                        background-color: white; 
+                        margin: 0; 
+                        padding: 0;
+                        -webkit-print-color-adjust: exact;
+                    }
+
+                    /* Content Styling */
+                    .page-container {
+                        padding: 0.5in;
+                        background: white;
+                        box-sizing: border-box;
+                        font-family: 'Times New Roman', Times, serif;
+                        color: #1a1a1a;
+                        display: block;
+                        width: 100%;
+                    }
+
+                    .content {
+                        font-size: 12.5pt;
+                        line-height: 1.7;
+                    }
+
+                    /* Prevent elements from being sliced in half by page breaks */
+                    .content > div, 
+                    .callout, 
+                    .image-container, 
+                    table, 
+                    h1, h2, h3 { 
+                        page-break-inside: avoid; 
+                        margin-bottom: 20pt;
+                    }
+
+                    .header {
+                        text-align: center;
+                        border-bottom: 2pt solid #2d3436;
+                        padding-bottom: 20px;
+                        margin-bottom: 40px;
+                    }
+
+                    .school-logo {
+                        height: 80px;
+                        display: block;
+                        margin: 0 auto 10px;
+                        object-fit: contain;
+                    }
+
+                    .school-name {
+                        font-family: 'Inter', sans-serif;
+                        font-size: 20pt;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 3px;
+                        margin: 0;
+                        color: #000;
+                    }
+
+                    .subject-tag {
+                        display: inline-block;
+                        background: #000;
+                        color: #fff;
+                        padding: 3pt 10pt;
+                        font-family: 'Inter', sans-serif;
+                        font-size: 8pt;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin-top: 5px;
+                    }
+
+                    .lesson-title {
+                        font-size: 28pt;
+                        font-weight: 700;
+                        margin: 20px 0 10px;
+                        line-height: 1.1;
+                    }
+
+                    .metadata {
+                        font-size: 10pt;
+                        color: #555;
+                        font-style: italic;
+                    }
+
+                    .content {
+                        font-size: 12.5pt;
+                        line-height: 1.7;
+                        flex: 1;
+                    }
+
+                    /* Professional Typography for Publisher View */
+                    h1 { font-size: 24pt; border-bottom: 1pt solid #eee; padding-bottom: 5px; margin-top: 30px; }
+                    h2 { font-size: 18pt; margin-top: 25px; color: #2d3436; }
+                    h3 { font-size: 14pt; margin-top: 20px; font-weight: bold; }
+                    p { margin-bottom: 15pt; }
+                    
+                    table { 
+                        width: 100%; 
+                        border-collapse: collapse; 
+                        margin: 20pt 0; 
+                        page-break-inside: avoid;
+                    }
+                    th { background: #f8f9fa; border: 1pt solid #2d3436; padding: 10pt; text-align: left; font-weight: 700; }
+                    td { border: 1pt solid #e0e0e0; padding: 10pt; vertical-align: top; }
+
+                    .callout {
+                        margin: 20pt 0;
+                        padding: 15pt;
+                        border-left: 4pt solid #000;
+                        background: #fdfdfd;
+                        page-break-inside: avoid;
+                    }
+                    .callout-label {
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        font-size: 9pt;
+                        margin-bottom: 5pt;
+                        display: block;
+                    }
+
+                    .math-formula { padding: 10pt; text-align: center; background: #fafafa; margin: 15pt 0; }
+
+                    .image-container {
+                        text-align: center;
+                        margin: 25pt 0;
+                        page-break-inside: avoid;
+                    }
+                    .image-container img {
+                        max-width: 90%;
+                        max-height: 4in;
+                        border: 0.5pt solid #ddd;
+                        padding: 3pt;
+                        background: white;
+                    }
+                    .caption {
+                        font-size: 10pt;
+                        color: #666;
+                        margin-top: 8pt;
+                        font-style: italic;
+                    }
+
+                    .footer {
+                        margin-top: auto;
+                        padding-top: 15px;
+                        border-top: 1pt solid #eee;
+                        display: flex;
+                        justify-content: space-between;
+                        font-family: 'Inter', sans-serif;
+                        font-size: 8pt;
+                        color: #999;
+                        font-weight: 500;
+                    }
+                    
+                    .page-break { page-break-after: always; }
+                    
+                    @page { margin: 0; size: letter; }
                 </style>
-                <div class="pdf-text">
+            </head>
+            <body>
+                <div class="page-container">
+                    <div class="header">
+                        ${(schoolSettings?.school_logo || schoolSettings?.school_logo_url) 
+                            ? `<img src="${getProxiedUrl(schoolSettings.school_logo || schoolSettings.school_logo_url)}" class="school-logo" crossorigin="anonymous" />` 
+                            : ''}
+                        <h1 class="school-name">${schoolSettings?.school_name || "Academic Institution"}</h1>
+                        <div class="subject-tag">Study Reference Material</div>
+                        <h2 class="lesson-title">${lesson.title}</h2>
+                        <div class="metadata">Department of Curriculum · Printed: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                    </div>
+                    
+                    <div class="content">
         `;
 
-        blocks.forEach(block => {
+        blocks.forEach((block, index) => {
             if (block.type === 'text') {
-                // Ensure raw text does not trigger color overrides by isolating styles.
-                htmlContent += `<div style="margin-bottom: 30px; page-break-inside: avoid; color: black;">${proxifyHtmlImages(block.content.html)}</div>`;
+                htmlContent += `<div style="margin-bottom: 20pt;">${proxifyHtmlImages(block.content.html)}</div>`;
+            } else if (block.type === 'note') {
+                htmlContent += `
+                    <div class="callout" style="border-color: #3498db; background: #f0f7fd;">
+                        <span class="callout-label" style="color: #2980b9;">🎓 Pro-Tip / Note</span>
+                        <div style="font-style: italic; color: #34495e;">${block.content.html}</div>
+                    </div>
+                `;
+            } else if (block.type === 'takeaway') {
+                htmlContent += `
+                    <div class="callout" style="border-color: #f39c12; background: #fef9e7;">
+                        <span class="callout-label" style="color: #d35400;">💡 Essential Takeaway</span>
+                        <div style="font-weight: 600; color: #7e5109;">${block.content.html}</div>
+                    </div>
+                `;
             } else if (block.type === 'image') {
                 htmlContent += `
-                    <div style="margin: 30px 0; text-align: center; page-break-inside: avoid;">
-                        <img src="${getProxiedUrl(block.content?.url)}" crossorigin="anonymous" style="max-width: 100%; max-height: 500px; display: block; margin: 0 auto; border: 1px solid #ddd; padding: 4px; background: white;" alt="Lesson Visual" />
-                        ${block.content?.caption ? `<p style="font-size: 11pt; color: #555; margin-top: 10px; font-style: italic;">Visual Reference: ${block.content.caption}</p>` : ''}
+                    <div class="image-container">
+                        <img src="${getProxiedUrl(block.content?.url)}" crossorigin="anonymous" alt="Visual Reference" />
+                        ${block.content?.caption ? `<div class="caption">Figure ${index + 1}: ${block.content.caption}</div>` : ''}
                     </div>
+                `;
+            } else if (block.type === 'table') {
+                const rows = block.content.rows || [];
+                const hasHeader = block.content.config?.hasHeader;
+                htmlContent += `
+                    <table>
+                        ${hasHeader ? `
+                            <thead>
+                                <tr>
+                                    ${rows[0].map(cell => `<th>${cell}</th>`).join('')}
+                                </tr>
+                            </thead>
+                        ` : ''}
+                        <tbody>
+                            ${rows.slice(hasHeader ? 1 : 0).map(row => `
+                                <tr>
+                                    ${row.map(cell => `<td>${cell}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 `;
             }
         });
 
         htmlContent += `
+                    </div>
+                    <div class="footer">
+                        <div>© ${new Date().getFullYear()} ${schoolSettings?.school_name || "System"}. All Rights Reserved.</div>
+                        <div>Generated via Inkiito LMS v2.0</div>
+                    </div>
                 </div>
-            </div>
+            </body>
+            </html>
         `;
 
         const opt = {
-            margin: [0.5, 0.5, 0.5, 0.5],
+            margin: [0.75, 0.75, 0.75, 0.75], // 0.75" Safe Margin (standard is 1", reduced for boarder spacing)
             filename: `${lesson.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
+            image: { type: 'jpeg', quality: 1.0 },
             html2canvas: {
-                scale: 2,
+                scale: 3,
                 useCORS: true,
+                letterRendering: true,
                 backgroundColor: '#ffffff',
-                imageTimeout: 15000
+                imageTimeout: 20000
             },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         try {
-            await html2pdf().set(opt).from(htmlContent).save();
+            const element = document.createElement('div');
+            element.innerHTML = htmlContent;
+            document.body.appendChild(element); // Must be in DOM for CSS loading
+            
+            // Wait a tiny bit for any remaining assets
+            await new Promise(r => setTimeout(r, 500));
+
+            const worker = html2pdf().set(opt).from(element);
+            
+            // Inject Page Borders and Page Numbers using jsPDF hooks
+            await worker.toPdf().get('pdf').then((pdf) => {
+                const totalPages = pdf.internal.getNumberOfPages();
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                
+                for (let i = 1; i <= totalPages; i++) {
+                    pdf.setPage(i);
+                    
+                    // 1. Draw Professional Box Border per page (Discrete)
+                    // We draw slightly inside the 1-inch margins
+                    pdf.setDrawColor(45, 52, 54); // Dark gray
+                    pdf.setLineWidth(0.02);
+                    pdf.rect(0.25, 0.25, pageWidth - 0.5, pageHeight - 0.5); // Outer frame
+                    pdf.rect(0.30, 0.30, pageWidth - 0.6, pageHeight - 0.6); // Inner thin accent
+
+                    // 2. Page Numbers (Bottom Right)
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(150);
+                    pdf.text(`Page ${i} of ${totalPages}`, pageWidth - 0.5, pageHeight - 0.4, { align: 'right' });
+                    
+                    // 3. School ID (Bottom Left)
+                    pdf.text(`© ${schoolSettings?.school_name || "LMS"} Reference Notes`, 0.5, pageHeight - 0.4);
+                }
+            }).save();
+
+            document.body.removeChild(element);
         } catch (err) {
             console.error("PDF generation failed", err);
         } finally {
@@ -178,17 +461,7 @@ export default function LessonView() {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="max-w-4xl mx-auto space-y-5 mt-10 animate-in fade-in duration-500">
-                <div className="h-32 bg-gray-50 rounded-xl animate-pulse" />
-                <div className="space-y-4">
-                    <CardSkeleton />
-                    <CardSkeleton />
-                </div>
-            </div>
-        );
-    }
+    if (isLoading) return <PageLoader message="Calibrating your learning experience..." color="red" />;
     if (error) return <div className="max-w-4xl mx-auto p-5 bg-red-50 text-school-primary font-semibold rounded-xl border border-red-100 shadow-sm shadow-red-50/50 mt-10">{error}</div>;
     if (!lesson) return <div className="max-w-4xl mx-auto p-5 bg-gray-50 text-gray-400 font-semibold rounded-xl border border-gray-100 mt-10">Lesson not found.</div>;
 
@@ -304,7 +577,7 @@ export default function LessonView() {
                 </div>
 
                 {/* Lesson Blocks (Continuous Stream View) */}
-                <div className="space-y-4 md:space-y-8 mt-10">
+                <div id="lesson-blocks-container" className="space-y-4 md:space-y-8 mt-10">
                     {blocks.map((block) => {
                         let cardClasses = "";
 
@@ -334,9 +607,94 @@ export default function LessonView() {
                                                 [&>blockquote]:border-l-4 [&>blockquote]:border-school-primary [&>blockquote]:bg-school-primary/[0.04] [&>blockquote]:py-6 [&>blockquote]:pr-6 [&>blockquote]:pl-8 [&>blockquote]:italic [&>blockquote]:my-10 [&>blockquote]:rounded-r-2xl [&>blockquote]:text-gray-900 [&>blockquote]:font-semibold
                                                 [&>pre]:bg-gray-950 [&>pre]:text-indigo-200 [&>pre]:p-6 [&>pre]:rounded-2xl [&>pre]:overflow-x-auto [&>pre]:my-8 [&>pre]:text-[15px] [&>pre]:ring-1 [&>pre]:ring-white/10 [&>pre]:shadow-xl
                                                 [&_code]:font-mono [&_code]:text-[15px] [&_code]:bg-gray-100 [&_code]:text-red-500 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md
+                                                [&>table]:block [&>table]:w-full [&>table]:overflow-x-auto [&>table]:border-collapse [&>table]:my-8 [&>table]:rounded-xl [&>table]:border [&>table]:border-gray-200
+                                                [&_th]:bg-gray-50 [&_th]:text-gray-900 [&_th]:font-bold [&_th]:p-4 [&_th]:text-left [&_th]:border-b [&_th]:border-gray-200
+                                                [&_td]:p-4 [&_td]:border-b [&_td]:border-gray-100 [&_td]:text-gray-700
+                                                [&_tr:last-child_td]:border-0
+                                                [&_.ql-formula]:inline-block [&_.ql-formula]:bg-indigo-50 [&_.ql-formula]:px-2 [&_.ql-formula]:py-1 [&_.ql-formula]:rounded [&_.ql-formula]:font-serif
                                                 [&>pre>code]:bg-transparent [&>pre>code]:text-inherit [&>pre>code]:px-0 [&>pre>code]:py-0"
                                             dangerouslySetInnerHTML={{ __html: block.content.html }}
                                         />
+                                    </div>
+                                )}
+
+                                {/* NOTE BLOCK */}
+                                {block.type === 'note' && (
+                                    <div className="my-10 p-8 bg-blue-50/50 rounded-3xl border border-blue-100 relative overflow-hidden group/note">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-2xl -mr-10 -mt-10 group-hover/note:scale-150 transition-transform duration-1000"></div>
+                                        <div className="relative z-10 flex gap-6">
+                                            <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-200 group-hover/note:rotate-6 transition-transform">
+                                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            </div>
+                                            <div className="space-y-4 flex-1">
+                                                 <h4 className="text-[12px] font-black text-blue-600 uppercase tracking-[0.2em]">Learning Resource Note</h4>
+                                                 <div 
+                                                     className="text-xl font-medium text-blue-900 leading-relaxed
+                                                         [&_a]:text-blue-600 [&_a]:underline [&_a]:font-bold
+                                                         [&_strong]:font-black [&_strong]:text-blue-950"
+                                                     dangerouslySetInnerHTML={{ __html: block.content.html }} 
+                                                 />
+                                             </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TAKEAWAY BLOCK */}
+                                {block.type === 'takeaway' && (
+                                    <div className="my-10 p-8 bg-amber-50 rounded-3xl border-2 border-amber-200/50 shadow-xl shadow-amber-900/5 relative overflow-hidden group/takeaway">
+                                        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl group-hover/takeaway:scale-150 transition-transform duration-1000"></div>
+                                        <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+                                            <div className="w-20 h-20 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xl shadow-amber-200 ring-8 ring-amber-50 group-hover/takeaway:scale-110 transition-transform duration-500">
+                                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                                            </div>
+                                            <div className="flex-1 space-y-3">
+                                                <div className="inline-block px-4 py-1 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full mb-2">Key Takeaway</div>
+                                                <div 
+                                                    className="text-2xl font-black text-amber-900 leading-tight
+                                                         [&_strong]:text-amber-600"
+                                                    dangerouslySetInnerHTML={{ __html: block.content.html || '' }} 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* DATA TABLE BLOCK */}
+                                {block.type === 'table' && (
+                                    <div className="my-10 overflow-hidden border border-gray-200 rounded-3xl shadow-sm bg-white group/table">
+                                        <div className="bg-gray-50/80 px-8 py-4 border-b border-gray-200 flex justify-between items-center">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Scientific Data Table</span>
+                                            <div className="flex gap-1">
+                                                <div className="w-2 h-2 rounded-full bg-gray-200"></div>
+                                                <div className="w-2 h-2 rounded-full bg-gray-200"></div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full border-collapse">
+                                                <thead>
+                                                    {block.content.config?.hasHeader && (
+                                                        <tr className="bg-indigo-50/30">
+                                                            {block.content.rows[0].map((cell, i) => (
+                                                                <th key={i} className="px-6 py-4 border-b border-gray-200 text-left text-xs font-black text-indigo-900 uppercase tracking-wider">
+                                                                    {cell}
+                                                                </th>
+                                                            ))}
+                                                        </tr>
+                                                    )}
+                                                </thead>
+                                                <tbody>
+                                                    {block.content.rows.slice(block.content.config?.hasHeader ? 1 : 0).map((row, rIndex) => (
+                                                        <tr key={rIndex} className={block.content.config?.striped && rIndex % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}>
+                                                            {row.map((cell, cIndex) => (
+                                                                <td key={cIndex} className="px-6 py-4 border-b border-gray-100 text-sm text-gray-700 font-medium">
+                                                                    {cell}
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 )}
 

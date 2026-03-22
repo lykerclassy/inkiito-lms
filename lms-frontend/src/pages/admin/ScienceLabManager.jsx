@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -250,7 +251,7 @@ export default function ScienceLabManager() {
         }
     };
 
-    if (isLoading) return <div className="p-6 text-center font-semibold text-gray-400">Loading Science Lab Systems...</div>;
+    if (isLoading) return <PageLoader message="Calibrating Virtual Lab Systems..." color="emerald" />;
 
     return (
         <div className="space-y-6 md:space-y-4 pb-20">

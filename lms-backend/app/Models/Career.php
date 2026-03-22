@@ -11,6 +11,7 @@ class Career extends Model
 
     protected $fillable = [
         'pathway_id',
+        'career_track_id',
         'track',
         'name',
         'slug',
@@ -25,6 +26,11 @@ class Career extends Model
     public function pathway()
     {
         return $this->belongsTo(Pathway::class);
+    }
+
+    public function careerTrack()
+    {
+        return $this->belongsTo(CareerTrack::class, 'career_track_id');
     }
 
     public function subjects()

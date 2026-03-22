@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import { AuthContext } from '../../contexts/AuthContext';
 
 // ─────────────────────────────────────────────
@@ -38,6 +39,7 @@ export default function CurriculumManager() {
     // ── Data ──────────────────────────────────
     const [subjects, setSubjects] = useState([]);
     const [academicLevels, setAcademicLevels] = useState([]);
+    const [curriculums, setCurriculums] = useState([]);
     const [staff, setStaff] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -57,14 +59,16 @@ export default function CurriculumManager() {
     const fetchAll = async () => {
         try {
             setIsLoading(true);
-            const [subjectsRes, levelsRes, staffRes] = await Promise.all([
+            const [subjectsRes, levelsRes, staffRes, curriculumsRes] = await Promise.all([
                 api.get('subjects'),
                 api.get('academic-levels'),
                 api.get('staff-list'),
+                api.get('settings/curriculums')
             ]);
             setSubjects(subjectsRes.data);
             setAcademicLevels(levelsRes.data);
             setStaff(staffRes.data);
+            setCurriculums(curriculumsRes.data);
         } catch (err) {
             console.error('Failed to fetch curriculum:', err);
             setError('Failed to load curriculum data. Please refresh.');
@@ -131,7 +135,7 @@ export default function CurriculumManager() {
 
     const closeModal = () => {
         setModal({ isOpen: false, type: '', mode: 'create', parentId: null, editId: null });
-        setForm({ title: '', academic_level_id: '', teacher_id: '', teacher_ids: [] });
+        setForm({ title: '', academic_level_id: '', curriculum_id: '', teacher_id: '', teacher_ids: [] });
     };
 
     // ── Submit ────────────────────────────────
@@ -147,6 +151,9 @@ export default function CurriculumManager() {
             if (type === 'subject') {
                 endpoint = 'subjects';
                 payload = { name: form.title, academic_level_id: form.academic_level_id };
+            } else if (type === 'academic_level') {
+                endpoint = 'academic-levels';
+                payload = { name: form.title, curriculum_id: form.curriculum_id };
             } else if (type === 'unit') {
                 endpoint = mode === 'create' ? 'units' : `units/${editId}`;
                 payload = { title: form.title, order: 1 };
@@ -185,6 +192,7 @@ export default function CurriculumManager() {
     // ── Modal label helpers ───────────────────
     const typeLabel = {
         subject: 'Subject',
+        academic_level: 'Class / Grade Level',
         unit: 'Unit / Strand',
         subunit: 'Topic / Sub-Strand',
         lesson: 'Lesson',
@@ -192,14 +200,7 @@ export default function CurriculumManager() {
         assign_subject_teachers: 'Subject Teachers'
     };
 
-    if (isLoading) return (
-        <div className="flex items-center justify-center py-16">
-            <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-school-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-500">Loading curriculum structure…</p>
-            </div>
-        </div>
-    );
+    if (isLoading) return <PageLoader message="Loading curriculum structure..." color="red" />;
     if (error) return <div className="p-4 text-red-500 font-medium bg-red-50 rounded-xl">{error}</div>;
 
     return (
@@ -214,9 +215,14 @@ export default function CurriculumManager() {
                     </p>
                 </div>
                 {currentUser?.role !== 'teacher' && (
-                    <Button variant="primary" onClick={() => openModal('subject')}>
-                        + Add Subject to a Class
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button variant="secondary" onClick={() => openModal('academic_level')}>
+                            + Create New Class
+                        </Button>
+                        <Button variant="primary" onClick={() => openModal('subject')}>
+                            + Add Subject to a Class
+                        </Button>
+                    </div>
                 )}
             </div>
 
@@ -575,6 +581,26 @@ export default function CurriculumManager() {
                                                 <option key={lvl.id} value={lvl.id}>
                                                     {lvl.name}{lvl.curriculum?.name ? ` (${lvl.curriculum.name})` : ''}
                                                 </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Curriculum selector — only when creating an Academic Level */}
+                                {modal.type === 'academic_level' && modal.mode === 'create' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                            Framework / Curriculum
+                                        </label>
+                                        <select
+                                            required
+                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-school-primary/30 focus:border-school-primary outline-none bg-white text-sm"
+                                            value={form.curriculum_id}
+                                            onChange={e => setForm({ ...form, curriculum_id: e.target.value })}
+                                        >
+                                            <option value="">— Select Framework —</option>
+                                            {curriculums.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
                                             ))}
                                         </select>
                                     </div>

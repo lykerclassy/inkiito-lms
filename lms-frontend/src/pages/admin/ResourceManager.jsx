@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import PageLoader from '../../components/common/PageLoader';
 import { useNotification } from '../../contexts/NotificationContext';
 
 export default function ResourceManager() {
@@ -172,13 +173,7 @@ export default function ResourceManager() {
 
             {/* Main Table Content */}
             {isLoading ? (
-                <div className="py-20 flex flex-col items-center justify-center">
-                    <svg className="animate-spin h-10 w-10 text-school-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Loading Resources...</p>
-                </div>
+                <PageLoader message="Cataloging School Resources..." color="red" />
             ) : (
                 <Card className="overflow-hidden no-padding border-none shadow-sm">
                     <div className="overflow-x-auto">
