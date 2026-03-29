@@ -9,7 +9,7 @@ class CommunityPost extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['community_id', 'user_id', 'content', 'media_type', 'media_url'];
+    protected $fillable = ['community_id', 'user_id', 'content', 'media_type', 'media_url', 'is_announcement'];
 
     public function community()
     {

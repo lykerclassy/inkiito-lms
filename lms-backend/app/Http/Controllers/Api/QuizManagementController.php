@@ -13,12 +13,12 @@ class QuizManagementController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $query = Quiz::with('subject', 'questions');
+        $query = Quiz::with(['subjectTitle', 'academicLevel', 'questions']);
 
-        // If teacher, only show quizzes for subjects they teach
-        if ($user->role === 'teacher') {
-            $taughtSubjectIds = $user->taughtSubjects->pluck('id');
-            $query->whereIn('subject_id', $taughtSubjectIds);
+        // If teacher, only show quizzes for subject titles they teach
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+            $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+            $query->whereIn('subject_title_id', $taughtTitleIds);
         }
 
         return response()->json($query->latest()->get());
@@ -27,7 +27,8 @@ class QuizManagementController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'subject_id' => 'required|exists:subjects,id',
+            'subject_title_id' => 'required|exists:subject_titles,id',
+            'academic_level_id' => 'nullable|exists:academic_levels,id',
             'title' => 'required|string',
             'description' => 'nullable|string',
             'time_limit' => 'nullable|integer',
@@ -36,13 +37,17 @@ class QuizManagementController extends Controller
 
         $user = $request->user();
 
-        // Security: Teachers can only create quizzes for their subjects
-        if ($user->role === 'teacher' && !$user->taughtSubjects->contains($request->subject_id)) {
-            return response()->json(['message' => 'Unauthorized to create quiz for this subject.'], 403);
+        // Security: Teachers can only create quizzes for their subject titles
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+            $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+            if (!$taughtTitleIds->contains($request->subject_title_id)) {
+                return response()->json(['message' => 'Unauthorized to create quiz for this subject.'], 403);
+            }
         }
 
         $quiz = Quiz::create([
-            'subject_id' => $request->subject_id,
+            'subject_title_id' => $request->subject_title_id,
+            'academic_level_id' => $request->academic_level_id,
             'title' => $request->title,
             'description' => $request->description,
             'time_limit' => $request->time_limit,
@@ -50,12 +55,12 @@ class QuizManagementController extends Controller
             'created_by' => $user->id
         ]);
 
-        return response()->json(['message' => 'Quiz created successfully', 'quiz' => $quiz], 201);
+        return response()->json(['message' => 'Quiz created successfully', 'quiz' => $quiz->load(['subjectTitle', 'academicLevel'])], 201);
     }
 
     public function show($id)
     {
-        $quiz = Quiz::with('questions', 'subject')->findOrFail($id);
+        $quiz = Quiz::with(['questions', 'subjectTitle', 'academicLevel'])->findOrFail($id);
         return response()->json($quiz);
     }
 
@@ -64,13 +69,16 @@ class QuizManagementController extends Controller
         $quiz = Quiz::findOrFail($id);
         $user = $request->user();
 
-        // Security check
-        if ($user->role === 'teacher' && !$user->taughtSubjects->contains($quiz->subject_id)) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        // Security check for subjects teacher teaches
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($quiz->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
         $quiz->update($request->all());
-        return response()->json(['message' => 'Quiz updated', 'quiz' => $quiz]);
+        return response()->json(['message' => 'Quiz updated', 'quiz' => $quiz->load(['subjectTitle', 'academicLevel'])]);
     }
 
     public function destroy($id)

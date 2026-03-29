@@ -13,12 +13,10 @@ class GradeController extends Controller
     {
         $subjectId = $request->query('subject_id');
         
-        // Only fetching students for the gradebook
         $query = User::where('role', 'student')
-            ->with(['quizResults.lesson.subUnit.unit.subject', 'quizAttempts.quiz.subject', 'assignmentSubmissions.assignment.subject', 'academicLevel']);
+            ->with(['quizResults.lesson.subUnit.unit.subject.title', 'quizAttempts.quiz.subjectTitle', 'assignmentSubmissions.assignment.subjectTitle', 'academicLevel']);
 
         if ($subjectId) {
-            // If subject_id is provided, we might want to filter students enrolled in that subject
             $query->whereHas('subjects', function($q) use ($subjectId) {
                 $q->where('subjects.id', $subjectId);
             });
@@ -27,7 +25,6 @@ class GradeController extends Controller
         $students = $query->get();
 
         $gradebook = $students->map(function ($student) use ($subjectId) {
-            // QUIZZES (Interactive Blocks): calculate % where is_correct is true
             $quizResults = $student->quizResults;
             if ($subjectId) {
                 $quizResults = $quizResults->filter(function($qr) use ($subjectId) {
@@ -38,28 +35,38 @@ class GradeController extends Controller
             $correctQuizzes = $quizResults->where('is_correct', true)->count();
             $quizAvg = $totalQuizzes > 0 ? ($correctQuizzes / $totalQuizzes) * 100 : 0;
 
-            // STANDALONE QUIZZES: average of (score/total_points) * 100
             $quizAttempts = $student->quizAttempts;
             if ($subjectId) {
-                $quizAttempts = $quizAttempts->filter(function($qa) use ($subjectId) {
-                    return $qa->quiz?->subject_id == $subjectId;
+                $subject = Subject::find($subjectId);
+                $titleId = $subject?->subject_title_id;
+                $levelId = $subject?->academic_level_id;
+                
+                $quizAttempts = $quizAttempts->filter(function($qa) use ($titleId, $levelId) {
+                    $quiz = $qa->quiz;
+                    if (!$quiz) return false;
+                    return $quiz->subject_title_id == $titleId && 
+                           ($quiz->academic_level_id === null || $quiz->academic_level_id == $levelId);
                 });
             }
             $standaloneQuizAvg = $quizAttempts->count() > 0 
                 ? $quizAttempts->map(fn($qa) => ($qa->total_points > 0 ? ($qa->score / $qa->total_points) * 100 : 0))->avg() 
                 : 0;
 
-            // ASSIGNMENTS: average of the 'score' column
             $assignmentSubmissions = $student->assignmentSubmissions;
             if ($subjectId) {
-                $assignmentSubmissions = $assignmentSubmissions->filter(function($as) use ($subjectId) {
-                    return $as->assignment?->subject_id == $subjectId;
+                $subject = Subject::find($subjectId);
+                $titleId = $subject?->subject_title_id;
+                $levelId = $subject?->academic_level_id;
+
+                $assignmentSubmissions = $assignmentSubmissions->filter(function($as) use ($titleId, $levelId) {
+                    $assignment = $as->assignment;
+                    if (!$assignment) return false;
+                    return $assignment->subject_title_id == $titleId && 
+                           ($assignment->academic_level_id === null || $assignment->academic_level_id == $levelId);
                 });
             }
             $assignmentAvg = $assignmentSubmissions->avg('score') ?? 0;
 
-            // OVERALL: simplified weighted average
-            // In a subject-specific view, we just average what's available
             $metrics = array_filter([$quizAvg, $standaloneQuizAvg, $assignmentAvg], fn($m) => $m > 0);
             $overall = count($metrics) > 0 ? array_sum($metrics) / count($metrics) : 0;
             $overall = round($overall);
@@ -84,10 +91,7 @@ class GradeController extends Controller
             ];
         });
 
-        // Sorted for Leaderboard if requested, or just return as is
         $leaderboard = $gradebook->sortByDesc('average')->values();
-
-        // Quick Stats aggregation
         $stats = [
             'totalStudents' => $students->count(),
             'schoolAverage' => round($gradebook->avg('average')),
@@ -98,7 +102,7 @@ class GradeController extends Controller
             'gradebook' => $gradebook,
             'leaderboard' => $leaderboard,
             'stats' => $stats,
-            'subjects' => Subject::select('id', 'name')->get()
+            'subjects' => Subject::with(['title', 'academicLevel'])->get()
         ]);
     }
 
@@ -107,41 +111,41 @@ class GradeController extends Controller
         $student = User::where('role', 'student')
             ->where('id', $userId)
             ->with([
-                'quizResults.lesson.subUnit.unit.subject',
-                'quizAttempts.quiz.subject',
-                'assignmentSubmissions.assignment.subject',
+                'quizResults.lesson.subUnit.unit.subject.title',
+                'quizAttempts.quiz.subjectTitle',
+                'assignmentSubmissions.assignment.subjectTitle',
                 'academicLevel'
             ])
             ->firstOrFail();
 
-        // Group quiz results by subject
+        // Group interactive quiz results by subject title
         $quizBreakdown = $student->quizResults->groupBy(function($res) {
-            return $res->lesson?->subUnit?->unit?->subject?->name ?? 'Other';
+            return $res->lesson?->subUnit?->unit?->subject?->title?->name ?? 'Other';
         })->map(function($results) {
             return [
                 'count' => $results->count(),
                 'correct' => $results->where('is_correct', true)->count(),
-                'avg' => round(($results->where('is_correct', true)->count() / $results->count()) * 100)
+                'avg' => round($results->count() > 0 ? ($results->where('is_correct', true)->count() / $results->count()) * 100 : 0)
             ];
         });
 
-        // Group standalone quizzes by subject
+        // Group standalone quizzes by subject title
         $standaloneQuizBreakdown = $student->quizAttempts->groupBy(function($qa) {
-            return $qa->quiz?->subject?->name ?? 'Other';
+            return $qa->quiz?->subjectTitle?->name ?? 'Other';
         })->map(function($attempts) {
             return [
                 'count' => $attempts->count(),
-                'avg' => round($attempts->map(fn($qa) => ($qa->total_points > 0 ? ($qa->score / $qa->total_points) * 100 : 0))->avg())
+                'avg' => round($attempts->map(fn($qa) => ($qa->total_points > 0 ? ($qa->score / $qa->total_points) * 100 : 0))->avg() ?? 0)
             ];
         });
 
-        // Group assignments by subject
+        // Group assignments by subject title
         $assignmentBreakdown = $student->assignmentSubmissions->groupBy(function($sub) {
-            return $sub->assignment?->subject?->name ?? 'Other';
+            return $sub->assignment?->subjectTitle?->name ?? 'Other';
         })->map(function($subs) {
             return [
                 'count' => $subs->count(),
-                'avg' => round($subs->avg('score'))
+                'avg' => round($subs->avg('score') ?? 0)
             ];
         });
 

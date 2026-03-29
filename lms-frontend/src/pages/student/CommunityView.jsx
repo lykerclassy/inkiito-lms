@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api, { getMediaUrl } from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import imageCompression from 'browser-image-compression';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 
@@ -74,12 +75,22 @@ export default function CommunityView() {
     const [newPost, setNewPost] = useState('');
     const [mediaFile, setMediaFile] = useState(null);
     const [mediaType, setMediaType] = useState(''); // 'image', 'video', 'audio', 'article'
-    const fileInputRef = useRef(null);
+    const [isAnnouncement, setIsAnnouncement] = useState(false);
+    const imageInputRef = useRef(null);
+    const audioInputRef = useRef(null);
+    const documentInputRef = useRef(null);
     
     // Interactions
     const [replyData, setReplyData] = useState({ postId: null, content: '' });
     const [activeTab, setActiveTab] = useState('Feed');
     const [openMenuPostId, setOpenMenuPostId] = useState(null);
+    const [openMenuReplyId, setOpenMenuReplyId] = useState(null);
+
+    // Edit states
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editingPostContent, setEditingPostContent] = useState('');
+    const [editingReplyId, setEditingReplyId] = useState(null);
+    const [editingReplyContent, setEditingReplyContent] = useState('');
 
     // Modals
     const [showEditModal, setShowEditModal] = useState(false);
@@ -87,6 +98,10 @@ export default function CommunityView() {
     const [subjects, setSubjects] = useState([]);
     const [editData, setEditData] = useState({ name: '', description: '', cover_image: null, avatar: null, subject_id: '' });
     const [eventData, setEventData] = useState({ title: '', description: '', event_date: '' });
+    
+    // Media States
+    const [mediaUrl, setMediaUrl] = useState('');
+    const [showYoutubeInput, setShowYoutubeInput] = useState(false);
 
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -99,7 +114,8 @@ export default function CommunityView() {
     const fetchCommunity = async () => {
         setIsLoading(true);
         try {
-            const res = await api.get(`communities/${id}`);
+            // Add a timestamp as a cache-buster param to ensure fresh data
+            const res = await api.get(`communities/${id}?t=${new Date().getTime()}`);
             setCommunity(res.data);
             setEditData({ 
                 name: res.data.name, 
@@ -136,8 +152,31 @@ export default function CommunityView() {
         try {
             const formData = new FormData();
             formData.append('content', newPost);
-            if (mediaFile) {
-                formData.append('media_file', mediaFile);
+            if (isStaff && isAnnouncement) {
+                formData.append('is_announcement', '1');
+            }
+            
+            if (mediaType === 'youtube' && mediaUrl) {
+                formData.append('media_type', 'youtube');
+                formData.append('media_url', mediaUrl);
+            } else if (mediaFile) {
+                let finalFile = mediaFile;
+                
+                // Compress images to massively save hosting bandwidth
+                if (mediaType === 'image') {
+                    const options = {
+                        maxSizeMB: 1,
+                        maxWidthOrHeight: 1280,
+                        useWebWorker: true,
+                    };
+                    try {
+                        finalFile = await imageCompression(mediaFile, options);
+                    } catch (error) {
+                        console.error('Image compression failed:', error);
+                    }
+                }
+                
+                formData.append('media_file', finalFile);
                 formData.append('media_type', mediaType);
             }
 
@@ -145,10 +184,22 @@ export default function CommunityView() {
             setNewPost('');
             setMediaFile(null);
             setMediaType('');
+            setMediaUrl('');
+            setShowYoutubeInput(false);
+            setIsAnnouncement(false);
             fetchCommunity();
         } catch (err) {
             showNotification('Failed to post', 'error');
         }
+    };
+    
+    // Helper to extract a 11-char Youtube video ID from any format URL and return an embed link
+    const getYoutubeEmbedUrl = (url) => {
+        if (!url) return null;
+        let videoId = null;
+        const watchMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+        if (watchMatch) videoId = watchMatch[1];
+        return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
     };
 
     const deletePost = async (postId) => {
@@ -158,7 +209,24 @@ export default function CommunityView() {
             setOpenMenuPostId(null);
             fetchCommunity();
         } catch(err) {
+            console.error('Delete post error:', err);
             showNotification('Failed to delete', 'error');
+        }
+    };
+
+    const updatePost = async (e) => {
+        e.preventDefault();
+        try {
+            // We use POST even for update because of how the route might handle multipart if we add image editing later
+            // But for now, simple content update
+            await api.post(`communities/${id}/posts/${editingPostId}`, { content: editingPostContent });
+            setEditingPostId(null);
+            setEditingPostContent('');
+            setOpenMenuPostId(null);
+            showNotification('Post updated', 'success');
+            fetchCommunity();
+        } catch (err) {
+            showNotification('Failed to update post', 'error');
         }
     };
 
@@ -169,6 +237,32 @@ export default function CommunityView() {
             setReplyData({ postId: null, content: '' });
             fetchCommunity();
         } catch (err) {}
+    };
+
+    const deleteReply = async (postId, replyId) => {
+        try {
+            await api.delete(`communities/${id}/posts/${postId}/replies/${replyId}`);
+            showNotification('Reply deleted', 'success');
+            setOpenMenuReplyId(null);
+            fetchCommunity();
+        } catch (err) {
+            console.error('Delete reply error:', err);
+            showNotification('Failed to delete reply', 'error');
+        }
+    };
+
+    const updateReply = async (e, postId) => {
+        e.preventDefault();
+        try {
+            await api.put(`communities/${id}/posts/${postId}/replies/${editingReplyId}`, { content: editingReplyContent });
+            setEditingReplyId(null);
+            setEditingReplyContent('');
+            setOpenMenuReplyId(null);
+            showNotification('Reply updated', 'success');
+            fetchCommunity();
+        } catch (err) {
+            showNotification('Failed to update reply', 'error');
+        }
     };
 
     const handleEditSubmit = async (e) => {
@@ -203,10 +297,7 @@ export default function CommunityView() {
         }
     };
 
-    const triggerFileSelect = (type) => {
-        setMediaType(type);
-        fileInputRef.current.click();
-    };
+
 
     if (isLoading && !community) return <div className="py-20 text-center animate-pulse text-gray-400 font-bold uppercase tracking-widest text-sm">Loading Community...</div>;
 
@@ -306,29 +397,46 @@ export default function CommunityView() {
                                                     <span className="text-red-500 cursor-pointer hover:underline" onClick={() => setMediaFile(null)}>Remove</span>
                                                 </div>
                                             )}
+                                            {showYoutubeInput && (
+                                                <div className="mt-2 relative">
+                                                    <input type="text" placeholder="Paste YouTube link here..." className="w-full text-sm p-3 pr-20 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-red-100 focus:border-red-400 transition-all font-medium" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} />
+                                                    <span className="absolute right-3 top-3 text-[10px] uppercase font-black tracking-widest text-red-500 bg-red-50 px-2 py-0.5 rounded-md">YouTube</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="px-4 py-3 flex flex-wrap sm:flex-nowrap justify-between items-center bg-gray-50/70 rounded-b-xl gap-2">
                                     <div className="flex items-center gap-2 sm:gap-6 flex-wrap">
-                                        <input type="file" ref={fileInputRef} className="hidden" 
-                                            accept={mediaType === 'image' ? "image/*" : mediaType === 'video' ? "video/*" : "audio/*"} 
-                                            onChange={(e) => setMediaFile(e.target.files[0])} 
-                                        />
-                                        <button type="button" onClick={() => triggerFileSelect('image')} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-orange-500 hover:bg-orange-50 px-2 py-1.5 rounded-md transition-colors">
+                                        <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => { setMediaType('image'); setMediaFile(e.target.files[0]); }} />
+                                        <input type="file" ref={audioInputRef} className="hidden" accept="audio/*" onChange={(e) => { setMediaType('audio'); setMediaFile(e.target.files[0]); }} />
+                                        <input type="file" ref={documentInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx" onChange={(e) => { setMediaType('document'); setMediaFile(e.target.files[0]); }} />
+                                        
+                                        <button type="button" onClick={() => { setShowYoutubeInput(false); imageInputRef.current.click(); }} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-orange-500 hover:bg-orange-50 px-2 py-1.5 rounded-md transition-colors">
                                             <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2v12a2 2 0 002 2z"></path></svg>
                                             <span className="hidden sm:inline">Image</span>
                                         </button>
-                                        <button type="button" onClick={() => triggerFileSelect('video')} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-blue-500 hover:bg-blue-50 px-2 py-1.5 rounded-md transition-colors">
-                                            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                                            <span className="hidden sm:inline">Video</span>
+                                        <button type="button" onClick={() => { setMediaType('youtube'); setMediaFile(null); setShowYoutubeInput(!showYoutubeInput); }} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors">
+                                            <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"></path></svg>
+                                            <span className="hidden sm:inline">YouTube Video</span>
                                         </button>
-                                        <button type="button" onClick={() => triggerFileSelect('audio')} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-teal-500 hover:bg-teal-50 px-2 py-1.5 rounded-md transition-colors">
+                                        <button type="button" onClick={() => { setShowYoutubeInput(false); audioInputRef.current.click(); }} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-teal-500 hover:bg-teal-50 px-2 py-1.5 rounded-md transition-colors">
                                            <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                                            <span className="hidden sm:inline">Audio</span>
                                         </button>
+                                        <button type="button" onClick={() => { setShowYoutubeInput(false); documentInputRef.current.click(); }} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-indigo-500 hover:bg-indigo-50 px-2 py-1.5 rounded-md transition-colors">
+                                            <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            <span className="hidden sm:inline">Document</span>
+                                        </button>
+                                        
+                                        {isStaff && (
+                                            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-indigo-900 bg-indigo-50/80 hover:bg-indigo-100 pl-1.5 pr-2.5 py-1 rounded-md transition-colors border border-indigo-100 ml-0 sm:ml-2">
+                                                <input type="checkbox" checked={isAnnouncement} onChange={e => setIsAnnouncement(e.target.checked)} className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-indigo-300 cursor-pointer" />
+                                                Pin as Announcement
+                                            </label>
+                                        )}
                                     </div>
-                                    <Button size="sm" type="submit" disabled={!newPost.trim() && !mediaFile} className="text-xs px-6 py-1.5 rounded-full shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none font-bold">Post</Button>
+                                    <Button size="sm" type="submit" disabled={!newPost.trim() && !mediaFile && !mediaUrl} className="text-xs px-6 py-1.5 rounded-full shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none font-bold">Post</Button>
                                 </div>
                             </form>
                         </Card>
@@ -340,18 +448,36 @@ export default function CommunityView() {
 
                     <div className="space-y-4">
                         {filteredPosts?.map(post => (
-                            <Card key={post.id} className="p-5 border border-gray-100 shadow-sm bg-white rounded-xl relative">
+                            <Card key={post.id} className={`p-5 shadow-sm rounded-xl relative !overflow-visible ${post.is_announcement ? 'border-2 border-indigo-400 bg-gradient-to-br from-indigo-50/80 to-white' : 'border border-gray-100 bg-white'}`}>
+                                {post.is_announcement && (
+                                    <div className="absolute top-0 left-5 -mt-3.5 bg-indigo-600 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1.5 shadow-[0_4px_12px_rgba(79,70,229,0.3)] border-2 border-white z-10">
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"></path></svg>
+                                        Pinned Announcement
+                                    </div>
+                                )}
                                 {/* Post Menu (...) */}
-                                {(post.user_id === user?.id || isStaff) && (
+                                {(String(post.user_id) === String(user?.id) || isStaff) && (
                                     <div className="absolute top-5 right-5">
                                         <button onClick={() => setOpenMenuPostId(openMenuPostId === post.id ? null : post.id)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
                                         </button>
                                         {openMenuPostId === post.id && (
                                             <div className="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-20">
-                                                <button onClick={() => deletePost(post.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50">Delete Post</button>
-                                            </div>
-                                        )}
+                                                 {String(post.user_id) === String(user?.id) && (
+                                                     <button 
+                                                         onClick={() => {
+                                                             setEditingPostId(post.id);
+                                                             setEditingPostContent(post.content);
+                                                             setOpenMenuPostId(null);
+                                                         }} 
+                                                         className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 border-b border-gray-50"
+                                                     >
+                                                         Edit Post
+                                                     </button>
+                                                 )}
+                                                 <button onClick={() => deletePost(post.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50">Delete Post</button>
+                                             </div>
+                                         )}
                                     </div>
                                 )}
 
@@ -365,14 +491,52 @@ export default function CommunityView() {
                                     </div>
                                 </div>
 
-                                <p className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed mb-4 p-1">{post.content}</p>
+                                 {editingPostId === post.id ? (
+                                     <form onSubmit={updatePost} className="mb-4">
+                                         <textarea 
+                                             autoFocus
+                                             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"
+                                             value={editingPostContent}
+                                             onChange={e => setEditingPostContent(e.target.value)}
+                                             rows="3"
+                                         />
+                                         <div className="flex gap-2 mt-2">
+                                             <Button size="sm" type="submit" className="text-[10px] px-4 py-1.5 rounded-lg font-bold">Save Changes</Button>
+                                             <Button size="sm" variant="outline" type="button" onClick={() => setEditingPostId(null)} className="text-[10px] px-4 py-1.5 rounded-lg font-bold">Cancel</Button>
+                                         </div>
+                                     </form>
+                                 ) : (
+                                     <p className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed mb-4 p-1">{post.content}</p>
+                                 )}
                                 
                                 {/* Media Attachment Rendering */}
                                 {post.media_url && (
-                                    <div className="mb-4 overflow-hidden rounded-xl border border-gray-100 shadow-sm">
+                                    <div className="mb-4 overflow-hidden rounded-xl shadow-sm bg-gray-50 border border-gray-100">
                                         {post.media_type === 'image' && <img src={getMediaUrl(post.media_url)} alt="post media" className="w-full h-auto max-h-[400px] object-cover" />}
-                                        {post.media_type === 'video' && <video src={getMediaUrl(post.media_url)} controls className="w-full h-auto max-h-[400px] bg-black" />}
-                                        {post.media_type === 'audio' && <audio src={getMediaUrl(post.media_url)} controls className="w-full mt-2" />}
+                                        {post.media_type === 'youtube' && (
+                                            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-inner bg-black border border-gray-100">
+                                                <iframe 
+                                                    src={getYoutubeEmbedUrl(post.media_url)} 
+                                                    title="YouTube video player" 
+                                                    frameBorder="0" 
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                                    allowFullScreen 
+                                                    className="absolute top-0 left-0 w-full h-full"
+                                                ></iframe>
+                                            </div>
+                                        )}
+                                        {post.media_type === 'audio' && <div className="p-3"><audio src={getMediaUrl(post.media_url)} controls className="w-full" /></div>}
+                                        {post.media_type === 'document' && (
+                                            <a href={getMediaUrl(post.media_url)} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                                                <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500 shadow-sm">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <span className="text-sm font-bold text-gray-800">Attached Document</span>
+                                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Click to Open</p>
+                                                </div>
+                                            </a>
+                                        )}
                                     </div>
                                 )}
                                 
@@ -403,12 +567,60 @@ export default function CommunityView() {
                                                  <div className="w-7 h-7 mt-0.5 rounded-full border border-gray-200 bg-gray-100 text-gray-500 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-sm">
                                                     {reply.user?.avatar ? <img src={getMediaUrl(reply.user.avatar)} alt="avatar" className="w-full h-full object-cover"/> : reply.user?.name.charAt(0)}
                                                 </div>
-                                                <div className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl p-3 pt-2.5 inline-block rounded-tl-sm">
-                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                        <span className="font-extrabold text-xs text-gray-900 tracking-tight">{reply.user?.name}</span>
-                                                        <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">• {new Date(reply.created_at).toLocaleDateString()}</span>
+                                                 <div className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl p-3 pt-2.5 inline-block rounded-tl-sm relative group/reply">
+                                                    <div className="flex items-center justify-between mb-0.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-extrabold text-xs text-gray-900 tracking-tight">{reply.user?.name}</span>
+                                                            <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">• {new Date(reply.created_at).toLocaleDateString()}</span>
+                                                        </div>
+                                                        
+                                                        {/* Reply Menu */}
+                                                        {(String(reply.user_id) === String(user?.id) || isStaff) && (
+                                                            <div className="relative">
+                                                                <button 
+                                                                    onClick={() => setOpenMenuReplyId(openMenuReplyId === reply.id ? null : reply.id)} 
+                                                                    className="opacity-0 group-hover/reply:opacity-100 p-1 text-gray-400 hover:text-gray-600 transition-all"
+                                                                >
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                                                                </button>
+                                                                {openMenuReplyId === reply.id && (
+                                                                    <div className="absolute right-0 mt-1 w-28 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-30">
+                                                                        {String(reply.user_id) === String(user?.id) && (
+                                                                            <button 
+                                                                                onClick={() => {
+                                                                                    setEditingReplyId(reply.id);
+                                                                                    setEditingReplyContent(reply.content);
+                                                                                    setOpenMenuReplyId(null);
+                                                                                }} 
+                                                                                className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-gray-700 hover:bg-gray-50 border-b border-gray-50"
+                                                                            >
+                                                                                Edit
+                                                                            </button>
+                                                                        )}
+                                                                        <button onClick={() => deleteReply(post.id, reply.id)} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-50">Delete</button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <p className="text-gray-700 text-sm font-medium leading-relaxed">{reply.content}</p>
+
+                                                    {editingReplyId === reply.id ? (
+                                                        <form onSubmit={(e) => updateReply(e, post.id)}>
+                                                            <textarea 
+                                                                autoFocus
+                                                                className="w-full p-2 bg-white border border-gray-200 rounded-lg outline-none text-xs font-medium"
+                                                                value={editingReplyContent}
+                                                                onChange={e => setEditingReplyContent(e.target.value)}
+                                                                rows="2"
+                                                            />
+                                                            <div className="flex gap-2 mt-1.5">
+                                                                <button type="submit" className="text-[9px] font-black uppercase text-blue-600 hover:underline">Save</button>
+                                                                <button type="button" onClick={() => setEditingReplyId(null)} className="text-[9px] font-black uppercase text-gray-400 hover:underline">Cancel</button>
+                                                            </div>
+                                                        </form>
+                                                    ) : (
+                                                        <p className="text-gray-700 text-sm font-medium leading-relaxed">{reply.content}</p>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}

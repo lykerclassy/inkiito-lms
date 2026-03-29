@@ -15,18 +15,18 @@ class Downloadable extends Model
         'file_url',
         'file_type',
         'category',
-        'subject_id',
+        'subject_title_id',
         'academic_level_id',
     ];
 
-    public function subject()
+    public function subjectTitle()
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(SubjectTitle::class, 'subject_title_id');
     }
 
     public function academicLevel()
     {
-        return $this->belongsTo(AcademicLevel::class);
+        return $this->belongsTo(AcademicLevel::class, 'academic_level_id');
     }
 
     /**

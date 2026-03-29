@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\CommunityPost;
 use App\Models\CommunityPostReply;
+use App\Models\SubjectTitle;
 use Illuminate\Http\Request;
 
 class CommunityController extends Controller
@@ -14,28 +15,32 @@ class CommunityController extends Controller
     {
         $user = $request->user();
         
-        $communities = Community::withCount('members')->with('subject')->get();
+        $communities = Community::withCount('members')->with('subjectTitle')->get();
         
         $myCommunityIds = $user->communities()->pluck('communities.id')->toArray();
-        $mySubjectIds = $user->subjects()->pluck('subjects.id')->toArray();
-        $isStaff = in_array($user->role, ['admin', 'developer', 'principal', 'teacher', 'class_teacher', 'dos', 'deputy_principal']);
+        // Enrollment check: we use the ENROLLED subject's title ID
+        $myEnrolledTitleIds = $user->subjects()
+            ->wherePivotIn('status', ['active', 'completed'])
+            ->pluck('subjects.subject_title_id')->toArray();
+            
+        $isStaff = in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher']);
 
-        $communities = $communities->map(function ($c) use ($myCommunityIds, $mySubjectIds, $isStaff) {
+        $communities = $communities->map(function ($c) use ($myCommunityIds, $myEnrolledTitleIds, $isStaff) {
             $c->is_member = in_array($c->id, $myCommunityIds);
             
-            // Can only join if not restricted, or user is enrolled in the subject, or user is staff
             $c->can_join = true;
-            if ($c->subject_id && !$isStaff && !in_array($c->subject_id, $mySubjectIds)) {
+            // Loophole Check: student can only join if they take the subject (via title)
+            if ($c->subject_title_id && !$isStaff && !in_array($c->subject_title_id, $myEnrolledTitleIds)) {
                 $c->can_join = false;
             }
             
             return $c;
         });
 
-        // If staff, also return all subjects to populate creation dropdown
+        // Dropdown for staff/creation
         $subjects = [];
         if ($isStaff) {
-            $subjects = \App\Models\Subject::orderBy('name')->get();
+            $subjects = SubjectTitle::orderBy('name')->get();
         }
 
         return response()->json([
@@ -50,14 +55,14 @@ class CommunityController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'is_public' => 'boolean',
-            'subject_id' => 'nullable|exists:subjects,id'
+            'subject_title_id' => 'nullable|exists:subject_titles,id'
         ]);
 
         $community = Community::create([
             'name' => $request->name,
             'description' => $request->description,
             'is_public' => $request->is_public ?? true,
-            'subject_id' => $request->subject_id,
+            'subject_title_id' => $request->subject_title_id,
             'created_by' => $request->user()->id,
         ]);
 
@@ -71,8 +76,8 @@ class CommunityController extends Controller
         $request->validate([
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'is_public' => 'nullable', // Handled below
-            'subject_id' => 'nullable', // Validated manually or via logic
+            'is_public' => 'nullable',
+            'subject_title_id' => 'nullable|exists:subject_titles,id',
             'avatar' => 'nullable|image|max:5120',
             'cover_image' => 'nullable|image|max:10240'
         ]);
@@ -84,36 +89,26 @@ class CommunityController extends Controller
             $community->is_public = filter_var($request->is_public, FILTER_VALIDATE_BOOLEAN);
         }
 
-        // Handle subject_id conversion from string/null
-        if ($request->has('subject_id')) {
-            $subId = $request->subject_id;
-            if ($subId === '' || $subId === 'null' || $subId === 'undefined') {
-                $community->subject_id = null;
+        if ($request->has('subject_title_id')) {
+            $val = $request->subject_title_id;
+            if ($val === '' || $val === 'null') {
+                 $community->subject_title_id = null;
             } else {
-                $community->subject_id = $subId;
+                 $community->subject_title_id = $val;
             }
         }
 
-        // Image Handling Pattern exactly like UserController@updateProfile
         if ($request->hasFile('avatar')) {
-            $oldPath = $community->getRawOriginal('avatar');
-            if ($oldPath && !filter_var($oldPath, FILTER_VALIDATE_URL)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($oldPath);
-            }
-            $community->avatar = $request->file('avatar')->store('communities/avatars', 'public');
+             $community->avatar = $request->file('avatar')->store('communities/avatars', 'public');
         }
 
         if ($request->hasFile('cover_image')) {
-            $oldPath = $community->getRawOriginal('cover_image');
-            if ($oldPath && !filter_var($oldPath, FILTER_VALIDATE_URL)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($oldPath);
-            }
-            $community->cover_image = $request->file('cover_image')->store('communities/covers', 'public');
+             $community->cover_image = $request->file('cover_image')->store('communities/covers', 'public');
         }
 
         $community->save();
 
-        return response()->json($community->load('subject'));
+        return response()->json($community->load('subjectTitle'));
     }
 
     public function join(Request $request, $id)
@@ -122,11 +117,14 @@ class CommunityController extends Controller
         $user = $request->user();
         $isStaff = in_array($user->role, ['admin', 'developer', 'principal', 'teacher', 'class_teacher', 'dos', 'deputy_principal']);
         
-        // Subject Restriction Check
-        if ($community->subject_id && !$isStaff) {
-            $isEnrolled = $user->subjects()->where('subjects.id', $community->subject_id)->exists();
+        // Subject Restriction Check via Enrollment and Title
+        if ($community->subject_title_id && !$isStaff) {
+            $isEnrolled = $user->subjects()
+                ->where('subjects.subject_title_id', $community->subject_title_id)
+                ->wherePivotIn('status', ['active', 'completed'])
+                ->exists();
             if (!$isEnrolled) {
-                return response()->json(['error' => 'Enrollment required in ' . $community->subject->name . ' to join this community.'], 403);
+                return response()->json(['error' => 'Enrollment required in ' . ($community->subjectTitle->name ?? 'the subject') . ' to join this community.'], 403);
             }
         }
 
@@ -141,77 +139,177 @@ class CommunityController extends Controller
     {
         $community = Community::findOrFail($id);
         $user = $request->user();
-        
         $community->members()->detach($user->id);
-
         return response()->json(['message' => 'Left community']);
     }
 
     public function show($id, Request $request)
     {
-        $community = Community::with(['creator', 'posts.user', 'posts.replies.user', 'events', 'subject'])->withCount('members')->findOrFail($id);
-        $community->is_member = $community->members()->where('user_id', $request->user()->id)->exists();
+        $community = Community::with([
+            'creator', 
+            'posts' => function($q) {
+                $q->orderBy('is_announcement', 'desc')->orderBy('created_at', 'desc');
+            },
+            'posts.user', 
+            'posts.replies.user', 
+            'events', 
+            'subjectTitle'
+        ])->withCount('members')->findOrFail($id);
+        $user = $request->user();
+        $isStaff = in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher']);
+        
+        $community->is_member = $community->members()->where('user_id', $user->id)->exists();
+
+        // Privacy check
+        if ($community->subject_title_id && !$isStaff) {
+            $isEnrolled = $user->subjects()
+                ->where('subjects.subject_title_id', $community->subject_title_id)
+                ->wherePivotIn('status', ['active', 'completed'])
+                ->exists();
+            if (!$isEnrolled) {
+                return response()->json(['error' => 'Access restricted.'], 403);
+            }
+        }
+
         return response()->json($community);
     }
 
     public function storePost(Request $request, $id)
     {
         $community = Community::findOrFail($id);
-        if (!$community->members()->where('user_id', $request->user()->id)->exists()) {
+        $user = $request->user();
+        $isStaff = in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher']);
+
+        if (!$community->members()->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Not a member'], 403);
         }
 
+        if ($community->subject_title_id && !$isStaff) {
+             $isEnrolled = $user->subjects()
+                ->where('subjects.subject_title_id', $community->subject_title_id)
+                ->wherePivotIn('status', ['active', 'completed'])
+                ->exists();
+            if (!$isEnrolled) {
+                return response()->json(['error' => 'Unauthorized participation.'], 403);
+            }
+        }
+
         $request->validate([
-            'content' => 'required|string',
-            'media_file' => 'nullable|file|max:10240',
-            'media_type' => 'nullable|string'
+            'content' => 'required|string', 
+            'media_file' => 'nullable|file|max:5120', // Cap local files to 5MB
+            'media_type' => 'nullable|string',
+            'media_url' => 'nullable|string|url', // Accept string URLs for YouTube
+            'is_announcement' => 'nullable|boolean'
         ]);
 
         $data = [
-            'community_id' => $community->id,
-            'user_id' => $request->user()->id,
-            'content' => $request->content,
-            'media_type' => $request->media_type
+            'community_id' => $community->id, 
+            'user_id' => $user->id, 
+            'content' => $request->content, 
+            'media_type' => $request->media_type,
+            'is_announcement' => $isStaff ? filter_var($request->input('is_announcement', false), FILTER_VALIDATE_BOOLEAN) : false
         ];
-
-        if ($request->hasFile('media_file')) {
+        
+        if ($request->media_type === 'youtube' && $request->media_url) {
+            $data['media_url'] = $request->media_url;
+        } elseif ($request->hasFile('media_file')) {
             $data['media_url'] = $request->file('media_file')->store('community_posts', 'public');
         }
 
         $post = CommunityPost::create($data);
+        return response()->json($post->load('user', 'replies'));
+    }
 
+    public function updatePost(Request $request, $id, $postId)
+    {
+        $post = CommunityPost::findOrFail($postId);
+        if ($post->user_id != $request->user()->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'content' => 'required|string',
+            'media_file' => 'nullable|file|max:5120',
+            'media_type' => 'nullable|string',
+            'media_url' => 'nullable|string|url',
+            'is_announcement' => 'nullable|boolean'
+        ]);
+
+        $isStaff = in_array($request->user()->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher']);
+        
+        $post->content = $request->content;
+        $post->media_type = $request->media_type;
+        if ($isStaff) {
+            $post->is_announcement = filter_var($request->input('is_announcement', false), FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if ($request->media_type === 'youtube' && $request->media_url) {
+            // Delete old physical file if switching to youtube
+            if ($post->media_url && !str_starts_with($post->media_url, 'http')) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($post->media_url);
+            }
+            $post->media_url = $request->media_url;
+        } elseif ($request->hasFile('media_file')) {
+            // Delete old physical file before replacing
+            if ($post->media_url && !str_starts_with($post->media_url, 'http')) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($post->media_url);
+            }
+            $post->media_url = $request->file('media_file')->store('community_posts', 'public');
+        }
+
+        $post->save();
         return response()->json($post->load('user', 'replies'));
     }
 
     public function destroyPost(Request $request, $id, $postId)
     {
-        $post = CommunityPost::where('community_id', $id)->findOrFail($postId);
+        $post = CommunityPost::findOrFail($postId);
+        $isStaff = in_array($request->user()->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher']);
         
-        $isAuthor = $post->user_id === $request->user()->id;
-        $isSysAdmin = in_array($request->user()->role, ['admin', 'developer']);
-        
-        if (!$isAuthor && !$isSysAdmin) {
+        if ($post->user_id != $request->user()->id && !$isStaff) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $post->delete();
+        // Clean up physical file if it exists and isn't a youtube URL
+        if ($post->media_url && $post->media_type !== 'youtube' && !str_starts_with($post->media_url, 'http')) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($post->media_url);
+        }
 
+        $post->delete();
         return response()->json(['message' => 'Post deleted']);
     }
-
 
     public function storeReply(Request $request, $id, $postId)
     {
         $request->validate(['content' => 'required|string']);
-        
         $post = CommunityPost::where('community_id', $id)->findOrFail($postId);
+        $reply = CommunityPostReply::create(['community_post_id' => $post->id, 'user_id' => $request->user()->id, 'content' => $request->content]);
+        return response()->json($reply->load('user'));
+    }
 
-        $reply = CommunityPostReply::create([
-            'community_post_id' => $post->id,
-            'user_id' => $request->user()->id,
-            'content' => $request->content
-        ]);
+    public function updateReply(Request $request, $id, $postId, $replyId)
+    {
+        $reply = CommunityPostReply::findOrFail($replyId);
+        if ($reply->user_id != $request->user()->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $request->validate(['content' => 'required|string']);
+        $reply->content = $request->content;
+        $reply->save();
 
         return response()->json($reply->load('user'));
+    }
+
+    public function destroyReply(Request $request, $id, $postId, $replyId)
+    {
+        $reply = CommunityPostReply::findOrFail($replyId);
+        $isStaff = in_array($request->user()->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos', 'class_teacher', 'teacher']);
+
+        if ($reply->user_id != $request->user()->id && !$isStaff) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        $reply->delete();
+        return response()->json(['message' => 'Reply deleted.']);
     }
 }

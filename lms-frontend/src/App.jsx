@@ -2,6 +2,8 @@ import React, { useContext, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import Login from './pages/auth/Login';
+import PrivacyPolicy from './pages/auth/PrivacyPolicy';
+import SupportWidget from './components/common/SupportWidget';
 
 // Layouts
 import StudentLayout from './layouts/StudentLayout';
@@ -44,6 +46,9 @@ import VocabularyManager from './pages/admin/VocabularyManager';
 import ResourceManager from './pages/admin/ResourceManager';
 import QuizManager from './pages/admin/QuizManager';
 import QuizQuestionEditor from './pages/admin/QuizQuestionEditor';
+import LiveClasses from './pages/admin/LiveClasses';
+import SupportAdmin from './pages/admin/SupportAdmin';
+import StudentProfileView from './pages/admin/StudentProfileView';
 
 // Shared Pages
 import Profile from './pages/common/Profile';
@@ -155,6 +160,7 @@ export default function App() {
 
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={user ? <Navigate to={user.role === 'student' ? "/student/dashboard" : "/admin/dashboard"} replace /> : <Login />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
         {/* --- STUDENT ROUTES --- */}
         <Route path="/student/*" element={
@@ -180,6 +186,7 @@ export default function App() {
                 <Route path="resources" element={<Downloadables />} />
                 <Route path="communities" element={<CampusCommunities />} />
                 <Route path="communities/:id" element={<CommunityView />} />
+                <Route path="live-classes" element={<LiveClasses />} />
                 <Route path="ai-chat" element={<PowerAI />} />
               </Routes>
             </StudentLayout>
@@ -210,20 +217,25 @@ export default function App() {
                 <Route path="lab-assets" element={<HardwareManager />} />
                 <Route path="communities" element={<CampusCommunities />} />
                 <Route path="communities/:id" element={<CommunityView />} />
+                <Route path="live-classes" element={<LiveClasses />} />
 
                 {/* PREVIEW MODES: Point to the same student components but rendered inside AdminLayout */}
                 <Route path="science-labs/view/:slug" element={<ScienceLab />} />
                 <Route path="science-labs/preview/:slug" element={<ExperimentView />} />
 
-                {/* MANAGEMENT RESTRICTED: Curriculum structure & User accounts */}
                 <Route path="curriculum" element={
-                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                  <ProtectedRoute allowedRoles={ALL_STAFF}>
                     <CurriculumManager />
                   </ProtectedRoute>
                 } />
                 <Route path="users" element={
                   <ProtectedRoute allowedRoles={MANAGEMENT}>
                     <UserManagement />
+                  </ProtectedRoute>
+                } />
+                <Route path="users/:id/profile" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <StudentProfileView />
                   </ProtectedRoute>
                 } />
 
@@ -234,6 +246,7 @@ export default function App() {
                   </ProtectedRoute>
                 } />
                 <Route path="ai-chat" element={<PowerAI />} />
+                <Route path="tickets" element={<SupportAdmin />} />
               </Routes>
             </AdminLayout>
           </ProtectedRoute>
@@ -241,6 +254,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <SupportWidget />
     </Router>
   );
 }

@@ -16,12 +16,12 @@ class AssignmentController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $query = Assignment::with(['subject', 'teacher'])->withCount('submissions');
+        $query = Assignment::with(['subjectTitle', 'academicLevel', 'teacher'])->withCount('submissions');
 
         // If the user is a teacher, only show assignments for subjects they teach
-        if ($user->role === 'teacher') {
-            $subjectIds = $user->taughtSubjects()->pluck('subjects.id');
-            $query->whereIn('subject_id', $subjectIds);
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+            $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+            $query->whereIn('subject_title_id', $taughtTitleIds);
         }
 
         $assignments = $query->latest()->get();
@@ -32,12 +32,19 @@ class AssignmentController extends Controller
     {
         $request->validate([
             'title' => 'required|string',
-            'subject_id' => 'required|exists:subjects,id',
+            'subject_title_id' => 'required|exists:subject_titles,id',
+            'academic_level_id' => 'nullable|exists:academic_levels,id',
             'due_date' => 'required|date',
         ]);
 
-        if (!$this->canManageSubject($request->user(), $request->subject_id)) {
-            return response()->json(['message' => 'You are not assigned to this subject.'], 403);
+        $user = $request->user();
+
+        // Security: Teachers can only create assignments for their subject titles
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+            $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+            if (!$taughtTitleIds->contains($request->subject_title_id)) {
+                return response()->json(['message' => 'Unauthorized to create assignment for this subject.'], 403);
+            }
         }
 
         $initialContent = json_encode([
@@ -46,8 +53,9 @@ class AssignmentController extends Controller
 
         $assignment = Assignment::create([
             'title' => $request->title,
-            'subject_id' => $request->subject_id,
-            'teacher_id' => $request->user()->id,
+            'subject_title_id' => $request->subject_title_id,
+            'academic_level_id' => $request->academic_level_id,
+            'teacher_id' => $user->id,
             'type' => $request->type ?? 'Homework',
             'due_date' => $request->due_date,
             'description' => $request->description,
@@ -55,28 +63,38 @@ class AssignmentController extends Controller
             'expected_submission_type' => 'complex'
         ]);
 
-        return response()->json(['message' => 'Assignment created', 'assignment' => $assignment->load('subject')]);
+        return response()->json(['message' => 'Assignment created', 'assignment' => $assignment->load(['subjectTitle', 'academicLevel'])]);
     }
 
     public function update(Request $request, $id)
     {
         $assignment = Assignment::findOrFail($id);
-        
-        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
-            return response()->json(['message' => 'You do not have permission to manage this assignment.'], 403);
+        $user = $request->user();
+
+        // Security check
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($assignment->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
-        $assignment->update($request->only(['title', 'subject_id', 'type', 'due_date', 'description']));
-        return response()->json(['message' => 'Assignment details updated', 'assignment' => $assignment->load('subject')]);
+        $assignment->update($request->all());
+        return response()->json(['message' => 'Assignment details updated', 'assignment' => $assignment->load(['subjectTitle', 'academicLevel'])]);
     }
 
     public function updateContent(Request $request, $id)
     {
         $request->validate(['blocks' => 'required|array']);
         $assignment = Assignment::findOrFail($id);
+        $user = $request->user();
 
-        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
-            return response()->json(['message' => 'You do not have permission to manage this assignment.'], 403);
+        // Security check
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($assignment->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
         $assignment->update(['content' => json_encode($request->blocks)]);
@@ -86,9 +104,14 @@ class AssignmentController extends Controller
     public function destroy(Request $request, $id)
     {
         $assignment = Assignment::findOrFail($id);
+        $user = $request->user();
 
-        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
-            return response()->json(['message' => 'You do not have permission to delete this assignment.'], 403);
+        // Security check
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($assignment->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
         $assignment->delete();
@@ -98,9 +121,14 @@ class AssignmentController extends Controller
     public function getSubmissions(Request $request, $id)
     {
         $assignment = Assignment::findOrFail($id);
+        $user = $request->user();
 
-        if (!$this->canManageSubject($request->user(), $assignment->subject_id)) {
-            return response()->json(['message' => 'You do not have permission to view these submissions.'], 403);
+        // Security check
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($assignment->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
         $submissions = AssignmentSubmission::where('assignment_id', $id)->with('student')->get();
@@ -117,9 +145,14 @@ class AssignmentController extends Controller
     {
         $request->validate(['score' => 'required|numeric']);
         $submission = AssignmentSubmission::with('assignment')->findOrFail($submissionId);
+        $user = $request->user();
 
-        if (!$this->canManageSubject($request->user(), $submission->assignment->subject_id)) {
-            return response()->json(['message' => 'You do not have permission to grade this submission.'], 403);
+        // Security check
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($submission->assignment->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
         $submission->update([
@@ -130,22 +163,6 @@ class AssignmentController extends Controller
         return response()->json(['message' => 'Grade and feedback saved successfully', 'submission' => $submission]);
     }
 
-    /**
-     * Helper to check if a user can manage a subject.
-     */
-    private function canManageSubject($user, $subjectId)
-    {
-        if (in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
-            return true;
-        }
-
-        if ($user->role === 'teacher') {
-            return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
-        }
-
-        return false;
-    }
-
     // ==========================================
     // STUDENT METHODS
     // ==========================================
@@ -153,10 +170,15 @@ class AssignmentController extends Controller
     public function studentAssignments(Request $request)
     {
         $user = $request->user();
-        $activeSubjectIds = $user->subjects()->wherePivot('status', 'active')->pluck('subjects.id');
+        $titleIds = $user->subjects()->wherePivot('status', 'active')->pluck('subject_title_id');
+        $academicLevelId = $user->academic_level_id;
 
-        $assignments = Assignment::whereIn('subject_id', $activeSubjectIds)
-            ->with(['subject', 'submissions' => function($query) use ($user) {
+        $assignments = Assignment::whereIn('subject_title_id', $titleIds)
+            ->where(function($q) use ($academicLevelId) {
+                $q->whereNull('academic_level_id')
+                  ->orWhere('academic_level_id', $academicLevelId);
+            })
+            ->with(['subjectTitle', 'academicLevel', 'submissions' => function($query) use ($user) {
                 $query->where('student_id', $user->id);
             }])
             ->orderBy('due_date', 'asc')

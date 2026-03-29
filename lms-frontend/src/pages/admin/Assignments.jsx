@@ -14,7 +14,8 @@ export default function AdminAssignments() {
 
     // Data State
     const [assignments, setAssignments] = useState([]);
-    const [subjects, setSubjects] = useState([]);
+    const [subjectTitles, setSubjectTitles] = useState([]);
+    const [academicLevels, setAcademicLevels] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -34,7 +35,8 @@ export default function AdminAssignments() {
 
     const initialFormState = {
         title: '',
-        subject_id: '',
+        subject_title_id: '',
+        academic_level_id: '',
         type: 'Homework',
         due_date: '',
         description: '',
@@ -45,23 +47,21 @@ export default function AdminAssignments() {
     // --- FETCH DATA ---
     const fetchData = async () => {
         try {
-            const [assignmentsRes, subjectsRes] = await Promise.all([
+            const [assignmentsRes, titlesRes, levelsRes] = await Promise.all([
                 api.get('assignments'),
-                api.get('subjects')
+                api.get('subjects/titles'),
+                api.get('academic-levels')
             ]);
 
-            let filteredSubjects = subjectsRes.data;
-            if (currentUser?.role === 'teacher') {
-                filteredSubjects = filteredSubjects.filter(sub =>
-                    currentUser.taught_subjects?.some(ts => ts.id === sub.id)
-                );
-            }
-
             setAssignments(assignmentsRes.data);
-            setSubjects(filteredSubjects);
+            setSubjectTitles(titlesRes.data);
+            setAcademicLevels(levelsRes.data);
 
-            if (filteredSubjects.length > 0 && !formData.subject_id) {
-                setFormData(prev => ({ ...prev, subject_id: filteredSubjects[0].id }));
+            // Default behavior if needed
+            if (!formData.subject_title_id && titlesRes.data.length > 0) {
+                // If teacher, find first taught title
+                const taughtTitleId = currentUser?.taught_subjects?.[0]?.subject_title_id || titlesRes.data[0].id;
+                setFormData(prev => ({ ...prev, subject_title_id: taughtTitleId }));
             }
         } catch (err) {
             console.error("Failed to fetch data:", err);
@@ -79,7 +79,9 @@ export default function AdminAssignments() {
     const openCreateModal = () => {
         setModalMode('create');
         setEditId(null);
-        setFormData({ ...initialFormState, subject_id: subjects.length > 0 ? subjects[0].id : '' });
+        // Find default title (either first taught or first available)
+        const taughtTitleId = currentUser?.taught_subjects?.[0]?.subject_title_id || (subjectTitles.length > 0 ? subjectTitles[0].id : '');
+        setFormData({ ...initialFormState, subject_title_id: taughtTitleId });
         setIsModalOpen(true);
     };
 
@@ -88,7 +90,8 @@ export default function AdminAssignments() {
         setEditId(assignment.id);
         setFormData({
             title: assignment.title,
-            subject_id: assignment.subject_id,
+            subject_title_id: assignment.subject_title_id,
+            academic_level_id: assignment.academic_level_id || '',
             type: assignment.type,
             due_date: assignment.due_date,
             description: assignment.description || '',
@@ -212,7 +215,10 @@ export default function AdminAssignments() {
                                         <div className="font-bold text-gray-900">{assignment.title}</div>
                                         <div className="text-xs text-gray-500 mt-0.5">{assignment.type}</div>
                                     </td>
-                                    <td className="px-6 py-4 font-medium text-gray-700">{assignment.subject?.name}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-700">
+                                        {assignment.subject_title?.name} 
+                                        <span className="text-xs text-gray-400 block">{assignment.academic_level?.name || 'All Classes'}</span>
+                                    </td>
                                     <td className="px-6 py-4 text-gray-800">{assignment.due_date}</td>
                                     <td className="px-6 py-4 text-center font-bold text-gray-400">pending track</td>
                                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
@@ -230,8 +236,8 @@ export default function AdminAssignments() {
 
             {/* BASIC CREATE / EDIT MODAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-sm w-full max-w-lg overflow-hidden flex flex-col">
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
                             <h3 className="text-lg font-bold text-gray-900 capitalize">{modalMode} Basic Assignment</h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -246,9 +252,33 @@ export default function AdminAssignments() {
                                     <input type="text" required value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                                    <select required value={formData.subject_id} onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500">
-                                        {subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject Title</label>
+                                    <select 
+                                        required 
+                                        value={formData.subject_title_id} 
+                                        onChange={(e) => setFormData({ ...formData, subject_title_id: e.target.value })} 
+                                        className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select Subject...</option>
+                                        {subjectTitles.filter(t => {
+                                            if (['admin', 'developer', 'principal', 'dos'].includes(currentUser.role)) return true;
+                                            return currentUser.taught_subjects?.some(ts => ts.subject_title_id == t.id);
+                                        }).map(title => (
+                                            <option key={title.id} value={title.id}>{title.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Class / Academic Level (Optional - Leave blank for all levels)</label>
+                                    <select 
+                                        value={formData.academic_level_id} 
+                                        onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })} 
+                                        className="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Global / All Levels</option>
+                                        {academicLevels.map(level => (
+                                            <option key={level.id} value={level.id}>{level.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">

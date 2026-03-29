@@ -10,7 +10,8 @@ class Quiz extends Model
     use HasFactory;
 
     protected $fillable = [
-        'subject_id',
+        'subject_title_id',
+        'academic_level_id',
         'unit_id',
         'title',
         'description',
@@ -19,9 +20,14 @@ class Quiz extends Model
         'created_by'
     ];
 
-    public function subject()
+    public function subjectTitle()
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(SubjectTitle::class, 'subject_title_id');
+    }
+
+    public function academicLevel()
+    {
+        return $this->belongsTo(AcademicLevel::class, 'academic_level_id');
     }
 
     public function unit()

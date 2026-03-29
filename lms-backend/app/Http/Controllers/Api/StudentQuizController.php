@@ -16,11 +16,19 @@ class StudentQuizController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $subjectIds = $user->subjects->pluck('id');
+        $titleIds = $user->subjects->pluck('subject_title_id');
+        $academicLevelId = $user->academic_level_id;
 
-        $quizzes = Quiz::whereIn('subject_id', $subjectIds)
+        $quizzes = Quiz::whereIn('subject_title_id', $titleIds)
+            ->where(function($q) use ($academicLevelId) {
+                // Return quizzes that are either:
+                // 1. Available for all levels (academic_level_id is NULL)
+                // 2. Restricted specifically to the student's level
+                $q->whereNull('academic_level_id')
+                  ->orWhere('academic_level_id', $academicLevelId);
+            })
             ->where('is_active', true)
-            ->with(['subject'])
+            ->with(['subjectTitle', 'academicLevel'])
             ->withCount('questions')
             ->latest()
             ->get();
@@ -46,11 +54,7 @@ class StudentQuizController extends Controller
      */
     public function show($id)
     {
-        $quiz = Quiz::with(['questions' => function($q) {
-            // We might want to shuffle or hide answers initially, 
-            // but for simplicity we return questions with options.
-            // Note: correct_answer is returned but should be handled carefully on frontend.
-        }, 'subject'])->findOrFail($id);
+        $quiz = Quiz::with(['questions', 'subjectTitle', 'academicLevel'])->findOrFail($id);
         
         return response()->json($quiz);
     }

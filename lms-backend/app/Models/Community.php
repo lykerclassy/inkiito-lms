@@ -9,7 +9,7 @@ class Community extends Model
 {
     use HasFactory;
     
-    protected $fillable = ['name', 'description', 'is_public', 'created_by', 'cover_image', 'avatar', 'subject_id'];
+    protected $fillable = ['name', 'description', 'is_public', 'created_by', 'cover_image', 'avatar', 'subject_title_id'];
 
     protected $casts = [
         'is_public' => 'boolean'
@@ -25,9 +25,9 @@ class Community extends Model
         return $this->belongsToMany(User::class)->withTimestamps();
     }
 
-    public function subject()
+    public function subjectTitle()
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(SubjectTitle::class, 'subject_title_id');
     }
 
     public function posts()

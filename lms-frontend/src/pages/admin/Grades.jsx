@@ -71,8 +71,12 @@ export default function AdminGrades() {
                         value={selectedSubject}
                         onChange={(e) => setSelectedSubject(e.target.value)}
                     >
-                        <option value="">All Subjects (KCSE Mode)</option>
-                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        <option value="">All Subjects (Global Registry)</option>
+                        {subjects.map(s => (
+                            <option key={s.id} value={s.id}>
+                                {s.title?.name || s.name} ({s.academic_level?.name || 'Class'})
+                            </option>
+                        ))}
                     </select>
                 </div>
             </header>
@@ -121,7 +125,12 @@ export default function AdminGrades() {
                         <div className="p-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
                             <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
                                 <svg className="w-6 h-6 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                                {selectedSubject ? subjects.find(s => s.id == selectedSubject)?.name : 'Overall'} Top Ranks
+                                {selectedSubject ? (
+                                    (() => {
+                                        const s = subjects.find(sub => sub.id == selectedSubject);
+                                        return s ? `${s.title?.name || s.name} (${s.academic_level?.name})` : 'Subject';
+                                    })()
+                                ) : 'Overall'} Top Ranks
                             </h2>
                             <p className="text-xs font-bold text-blue-100 opacity-80 mt-1">Based on quiz scores & assignments</p>
                         </div>
@@ -222,31 +231,39 @@ export default function AdminGrades() {
             {/* Detailed Student Report Card Modal (Updated) */}
             {selectedStudent && (
                 <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[40px] w-full max-w-5xl shadow-2xl relative overflow-hidden flex flex-col md:flex-row h-[90vh]">
+                    <div className="bg-white rounded-[30px] md:rounded-[40px] w-full max-w-5xl shadow-2xl relative overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-[80vh] animate-in zoom-in slide-in-from-bottom-10 duration-500">
+                        {/* Close Button Mobile */}
+                        <button 
+                            onClick={() => setSelectedStudent(null)}
+                            className="absolute top-4 right-4 z-50 p-2 bg-white/80 backdrop-blur rounded-full md:hidden shadow-lg border border-gray-100"
+                        >
+                            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+
                         {/* Sidebar */}
-                        <div className="w-full md:w-80 bg-gray-50 p-10 border-r border-gray-100 flex flex-col">
-                            <div className="flex flex-col items-center text-center mb-10">
-                                <div className="w-24 h-24 bg-blue-600 rounded-[35px] flex items-center justify-center text-white text-3xl font-black mb-6 shadow-2xl shadow-blue-200">
+                        <div className="w-full md:w-80 bg-gray-50 p-8 md:p-10 border-b md:border-b-0 md:border-r border-gray-100 flex flex-col shrink-0 overflow-y-auto max-h-[40vh] md:max-h-full">
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-20 h-20 md:w-24 md:h-24 bg-blue-600 rounded-[30px] md:rounded-[35px] flex items-center justify-center text-white text-2xl md:text-3xl font-black mb-4 md:mb-6 shadow-2xl shadow-blue-200">
                                     {selectedStudent.student.name.charAt(0)}
                                 </div>
-                                <h2 className="text-xl font-black text-gray-900 leading-tight">{selectedStudent.student.name}</h2>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-2">{selectedStudent.student.admission}</p>
-                                <div className="mt-4 px-4 py-1.5 bg-blue-100 rounded-full text-[10px] font-black uppercase text-blue-600 tracking-wider">
+                                <h2 className="text-lg md:text-xl font-black text-gray-900 leading-tight">{selectedStudent.student.name}</h2>
+                                <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400 mt-2">{selectedStudent.student.admission}</p>
+                                <div className="mt-4 px-4 py-1.5 bg-blue-100 rounded-full text-[9px] md:text-[10px] font-black uppercase text-blue-600 tracking-wider">
                                     {selectedStudent.student.level}
                                 </div>
                             </div>
 
-                            <div className="space-y-6 mt-auto">
-                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Interactive Score</p>
+                            <div className="space-y-4 md:space-y-6 mt-8 md:mt-auto">
+                                <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100">
+                                    <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1 leading-none">Interactive Lessons</p>
                                     <p className="text-2xl font-black text-blue-600">
                                         {Object.values(selectedStudent.quizzes).length > 0
                                             ? Math.round(Object.values(selectedStudent.quizzes).reduce((acc, curr) => acc + curr.avg, 0) / Object.values(selectedStudent.quizzes).length)
                                             : 0}%
                                     </p>
                                 </div>
-                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Quizzes Average</p>
+                                <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100">
+                                    <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1 leading-none">Quizzes Average</p>
                                     <p className="text-2xl font-black text-purple-600">
                                         {Object.values(selectedStudent.standalone_quizzes || {}).length > 0
                                             ? Math.round(Object.values(selectedStudent.standalone_quizzes).reduce((acc, curr) => acc + curr.avg, 0) / Object.values(selectedStudent.standalone_quizzes).length)
@@ -255,7 +272,7 @@ export default function AdminGrades() {
                                 </div>
                                 <button
                                     onClick={() => setSelectedStudent(null)}
-                                    className="w-full py-4 bg-gray-900 text-white rounded-3xl font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-xl shadow-gray-200"
+                                    className="hidden md:block w-full py-4 bg-gray-900 text-white rounded-3xl font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-xl shadow-gray-200"
                                 >
                                     Close Portal
                                 </button>
@@ -263,8 +280,8 @@ export default function AdminGrades() {
                         </div>
 
                         {/* Content Area */}
-                        <div className="flex-1 p-12 overflow-y-auto">
-                            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 mb-10 flex items-center gap-4">
+                        <div className="flex-1 p-8 md:p-12 overflow-y-auto bg-white">
+                            <h3 className="text-[11px] md:text-sm font-black uppercase tracking-[0.2em] text-gray-400 mb-8 md:mb-10 flex items-center gap-4">
                                 Mastery Breakdown
                                 <div className="h-[1px] flex-1 bg-gray-100" />
                             </h3>

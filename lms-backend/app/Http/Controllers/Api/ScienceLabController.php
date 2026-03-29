@@ -244,7 +244,7 @@ class ScienceLabController extends Controller
             return true;
         }
 
-        if ($user->role === 'teacher') {
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
             // Check if teacher is assigned to a subject that matches the lab slug/name
             $taughtSubjectNames = $user->taughtSubjects()->pluck('name')->toArray();
             $taughtSubjectNames = array_map('strtolower', $taughtSubjectNames);

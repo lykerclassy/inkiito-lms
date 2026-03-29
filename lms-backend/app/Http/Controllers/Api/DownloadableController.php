@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Downloadable;
 use App\Models\Subject;
+use App\Models\SubjectTitle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -17,14 +18,25 @@ class DownloadableController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $query = Downloadable::with(['subject', 'academicLevel']);
+        $query = Downloadable::with(['subjectTitle', 'academicLevel']);
 
         if ($request->has('category') && $request->category !== 'all') {
             $query->where('category', $request->category);
         }
 
+        // Filter based on student's active subjects and level
+        $subjects = $user->subjects()->wherePivot('status', 'active')->get();
+        $activeTitleIds = $subjects->pluck('subject_title_id');
+        $levelId = $user->academic_level_id;
+
+        $query->whereIn('subject_title_id', $activeTitleIds)
+              ->where(function($q) use ($levelId) {
+                  $q->whereNull('academic_level_id')
+                    ->orWhere('academic_level_id', $levelId);
+              });
+
         if ($request->has('subject_id') && $request->subject_id !== 'all') {
-            $query->where('subject_id', $request->subject_id);
+            $query->where('subject_title_id', $request->subject_id);
         }
 
         if ($request->has('search')) {
@@ -35,9 +47,10 @@ class DownloadableController extends Controller
             });
         }
 
-        $resources = $query->latest()->get();
-
-        $subjects = Subject::orderBy('name')->get();
+        $resources = $query->latest()->get()->map(function($r) {
+            $r->subject = $r->subjectTitle;
+            return $r;
+        });
 
         return response()->json([
             'resources' => $resources,
@@ -50,7 +63,13 @@ class DownloadableController extends Controller
      */
     public function adminIndex(Request $request)
     {
-        $query = Downloadable::with(['subject', 'academicLevel']);
+        $user = $request->user();
+        $query = Downloadable::with(['subjectTitle', 'academicLevel']);
+
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+            $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+            $query->whereIn('subject_title_id', $taughtTitleIds);
+        }
 
         if ($request->has('category') && $request->category !== 'all') {
             $query->where('category', $request->category);
@@ -68,28 +87,31 @@ class DownloadableController extends Controller
      */
     public function store(Request $request)
     {
+        $user = $request->user();
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'file_type' => 'required|string', 
             'category' => 'required|string',
-            'subject_id' => 'required|exists:subjects,id',
+            'subject_title_id' => 'required|exists:subject_titles,id',
             'academic_level_id' => 'nullable|exists:academic_levels,id',
-            // Either 'file' or 'external_url' is required
             'file' => 'nullable|file|max:20480',
             'external_url' => 'nullable|string|max:1000',
         ]);
 
-        if (!$this->canManageSubject($request->user(), $request->subject_id)) {
-            return response()->json(['message' => 'You are not assigned to this subject.'], 403);
+        // Security check for teachers
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($request->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized subject.'], 403);
+             }
         }
 
         $fileUrl = $request->external_url;
 
-        // If a file is uploaded, store it locally on OUR OWN SERVER
         if ($request->hasFile('file')) {
             $path = $request->file('file')->store('resources', 'public');
-            $fileUrl = $path; // Store relative path, map to asset() on retrieval
+            $fileUrl = $path;
         }
 
         if (empty($fileUrl)) {
@@ -102,13 +124,13 @@ class DownloadableController extends Controller
             'file_url' => $fileUrl,
             'file_type' => $validated['file_type'],
             'category' => $validated['category'],
-            'subject_id' => $validated['subject_id'],
+            'subject_title_id' => $validated['subject_title_id'],
             'academic_level_id' => $validated['academic_level_id'] ?? null,
         ]);
 
         return response()->json([
-            'message' => 'Resource published successfully on Local Nodes!',
-            'resource' => $resource->load(['subject', 'academicLevel'])
+            'message' => 'Resource published successfully!',
+            'resource' => $resource->load(['subjectTitle', 'academicLevel'])
         ]);
     }
 
@@ -118,34 +140,25 @@ class DownloadableController extends Controller
     public function destroy(Request $request, $id)
     {
         $resource = Downloadable::findOrFail($id);
+        $user = $request->user();
         
-        if (!$this->canManageSubject($request->user(), $resource->subject_id)) {
-            return response()->json(['message' => 'You do not have permission to delete this resource.'], 403);
+        // Security check
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
+             $taughtTitleIds = $user->taughtSubjects->pluck('subject_title_id')->unique();
+             if (!$taughtTitleIds->contains($resource->subject_title_id)) {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+             }
         }
 
-        // Cleanup local file if it's not a URL
-        if (!filter_var($resource->file_url, FILTER_VALIDATE_URL)) {
-            Storage::disk('public')->delete($resource->file_url);
+        if ($resource->file_url && !filter_var($resource->file_url, FILTER_VALIDATE_URL)) {
+            // It's a path, check if it exists before trying to delete from public disk
+            // Note: we store real path in DB but display via accessor
+            $rawPath = $resource->getRawOriginal('file_url');
+            Storage::disk('public')->delete($rawPath);
         }
 
         $resource->delete();
 
         return response()->json(['message' => 'Resource deleted.']);
-    }
-
-    /**
-     * Helper to check if a user can manage a subject.
-     */
-    private function canManageSubject($user, $subjectId)
-    {
-        if (in_array($user->role, ['admin', 'developer', 'principal', 'deputy_principal', 'dos'])) {
-            return true;
-        }
-
-        if ($user->role === 'teacher') {
-            return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
-        }
-
-        return false;
     }
 }

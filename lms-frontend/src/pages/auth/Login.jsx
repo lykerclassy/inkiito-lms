@@ -225,6 +225,16 @@ export default function Login() {
                             <InstallAppButton />
                         </div>
                     </div>
+
+                    {/* Privacy Policy Link */}
+                    <div className="mt-8 text-center">
+                        <a 
+                            href="/privacy-policy" 
+                            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-school-primary transition-colors border-b border-gray-100 hover:border-school-primary pb-1"
+                        >
+                            Privacy Policy & Data Protection
+                        </a>
+                    </div>
                 </div>
             </div>
 

@@ -9,7 +9,8 @@ import { AuthContext } from '../../contexts/AuthContext';
 export default function QuizManager() {
     const { user: currentUser } = useContext(AuthContext);
     const [quizzes, setQuizzes] = useState([]);
-    const [subjects, setSubjects] = useState([]);
+    const [subjectTitles, setSubjectTitles] = useState([]);
+    const [academicLevels, setAcademicLevels] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(null); // Quiz object or 'new'
@@ -19,7 +20,8 @@ export default function QuizManager() {
     const [formData, setFormData] = useState({
         title: '',
         description: '',
-        subject_id: '',
+        subject_title_id: '',
+        academic_level_id: '',
         time_limit: '',
         is_active: true
     });
@@ -33,12 +35,14 @@ export default function QuizManager() {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [quizRes, subjRes] = await Promise.all([
+            const [quizRes, titlesRes, levelsRes] = await Promise.all([
                 api.get('admin/quizzes'),
-                api.get('subjects')
+                api.get('subjects/titles'),
+                api.get('academic-levels')
             ]);
             setQuizzes(quizRes.data);
-            setSubjects(subjRes.data);
+            setSubjectTitles(titlesRes.data);
+            setAcademicLevels(levelsRes.data);
         } catch (err) {
             console.error("Failed to fetch data", err);
             showNotification("Failed to load quizzes", "error");
@@ -84,16 +88,20 @@ export default function QuizManager() {
             setFormData({
                 title: quiz.title,
                 description: quiz.description,
-                subject_id: quiz.subject_id,
+                subject_title_id: quiz.subject_title_id,
+                academic_level_id: quiz.academic_level_id || '',
                 time_limit: quiz.time_limit || '',
                 is_active: quiz.is_active
             });
             setIsEditing(quiz);
         } else {
+            // Default to first taught subject title if available
+            const taughtTitleId = currentUser?.taught_subjects?.[0]?.subject_title_id || '';
             setFormData({
                 title: '',
                 description: '',
-                subject_id: currentUser?.taught_subjects?.[0]?.id || '',
+                subject_title_id: taughtTitleId,
+                academic_level_id: '',
                 time_limit: '',
                 is_active: true
             });
@@ -124,7 +132,7 @@ export default function QuizManager() {
                             <div className="p-6">
                                 <div className="flex justify-between items-start mb-4">
                                     <span className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-black uppercase tracking-wider rounded">
-                                        {quiz.subject?.name}
+                                        {quiz.subjectTitle?.name} {quiz.academic_level ? `• ${quiz.academic_level.name}` : '• All Levels'}
                                     </span>
                                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => openEdit(quiz)} className="p-1.5 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-lg">
@@ -169,7 +177,7 @@ export default function QuizManager() {
 
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in duration-200">
                         <div className="px-6 py-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                             <h2 className="text-xl font-black text-gray-900">{isEditing === 'new' ? 'New Quiz' : 'Edit Quiz'}</h2>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -179,17 +187,36 @@ export default function QuizManager() {
                         <form onSubmit={handleSaveQuiz} className="p-8 space-y-6">
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Target Subject</label>
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Target Subject (Concept)</label>
                                         <select
                                             required
                                             className="w-full p-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-gray-700"
-                                            value={formData.subject_id}
-                                            onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
+                                            value={formData.subject_title_id}
+                                            onChange={(e) => setFormData({ ...formData, subject_title_id: e.target.value })}
                                         >
                                             <option value="">Select Subject</option>
-                                            {subjects.map(s => (
-                                                <option key={s.id} value={s.id}>{s.name} ({s.academic_level?.name})</option>
+                                            {subjectTitles
+                                                .filter(t => {
+                                                    if (['admin', 'developer', 'principal', 'dos'].includes(currentUser.role)) return true;
+                                                    return currentUser.taught_subjects?.some(ts => ts.subject_title_id == t.id);
+                                                })
+                                                .map(t => (
+                                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                                ))
+                                            }
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Class/Level (Optional)</label>
+                                        <select
+                                            className="w-full p-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-gray-700"
+                                            value={formData.academic_level_id}
+                                            onChange={(e) => setFormData({ ...formData, academic_level_id: e.target.value })}
+                                        >
+                                            <option value="">All Form/Grade</option>
+                                            {academicLevels.map(lvl => (
+                                                <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
                                             ))}
                                         </select>
                                     </div>

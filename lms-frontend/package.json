@@ -12,7 +12,9 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "axios": "^1.13.6",
+    "browser-image-compression": "^2.0.2",
     "canvas-confetti": "^1.9.4",
+    "date-fns": "^4.1.0",
     "html2pdf.js": "^0.14.0",
     "katex": "^0.16.37",
     "nprogress": "^0.2.0",

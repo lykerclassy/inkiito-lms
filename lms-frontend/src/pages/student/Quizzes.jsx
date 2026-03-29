@@ -42,7 +42,8 @@ export default function Quizzes() {
                             <div className="p-6 sm:p-8">
                                 <div className="flex justify-between items-start mb-6">
                                     <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider rounded-xl">
-                                        {quiz.subject?.name}
+                                        {quiz.subjectTitle?.name || quiz.subject?.name} 
+                                        {quiz.academic_level ? ` (${quiz.academic_level.name})` : ''}
                                     </span>
                                     {quiz.best_score !== null && (
                                         <div className="text-right">

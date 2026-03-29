@@ -35,11 +35,13 @@ const LEVEL_COLORS = [
 export default function CurriculumManager() {
     const navigate = useNavigate();
     const { user: currentUser } = useContext(AuthContext);
+    const isManagement = ['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(currentUser?.role);
 
     // ── Data ──────────────────────────────────
     const [subjects, setSubjects] = useState([]);
     const [academicLevels, setAcademicLevels] = useState([]);
     const [curriculums, setCurriculums] = useState([]);
+    const [subjectTitles, setSubjectTitles] = useState([]);
     const [staff, setStaff] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -59,16 +61,18 @@ export default function CurriculumManager() {
     const fetchAll = async () => {
         try {
             setIsLoading(true);
-            const [subjectsRes, levelsRes, staffRes, curriculumsRes] = await Promise.all([
+            const [subjectsRes, levelsRes, staffRes, curriculumsRes, titlesRes] = await Promise.all([
                 api.get('subjects'),
                 api.get('academic-levels'),
                 api.get('staff-list'),
-                api.get('settings/curriculums')
+                api.get('settings/curriculums'),
+                api.get('subjects/titles')
             ]);
             setSubjects(subjectsRes.data);
             setAcademicLevels(levelsRes.data);
             setStaff(staffRes.data);
             setCurriculums(curriculumsRes.data);
+            setSubjectTitles(titlesRes.data);
         } catch (err) {
             console.error('Failed to fetch curriculum:', err);
             setError('Failed to load curriculum data. Please refresh.');
@@ -101,10 +105,11 @@ export default function CurriculumManager() {
         return academicLevels.map(lvl => {
             let lvlSubjects = groupedByLevel[lvl.id] || [];
 
-            // TEACHER FILTER: Only show subjects they teach
-            if (currentUser?.role === 'teacher') {
+            // TEACHER FILTER: Only show subjects they teach (unless management)
+            if (!isManagement) {
                 lvlSubjects = lvlSubjects.filter(sub =>
-                    currentUser.taught_subjects?.some(ts => ts.id === sub.id)
+                    currentUser.taught_subjects?.some(ts => ts.id === sub.id) ||
+                    currentUser.taughtSubjects?.some(ts => ts.id === sub.id)
                 );
             }
 
@@ -114,7 +119,7 @@ export default function CurriculumManager() {
             };
         }).filter(lvl =>
             // If teacher, only show levels that have at least one of their subjects
-            currentUser?.role === 'teacher' ? lvl.subjects.length > 0 : true
+            !isManagement ? lvl.subjects.length > 0 : true
         );
     }, [academicLevels, groupedByLevel, currentUser]);
 
@@ -149,7 +154,7 @@ export default function CurriculumManager() {
             let usePut = mode !== 'create';
 
             if (type === 'subject') {
-                endpoint = 'subjects';
+                endpoint = mode === 'create' ? 'subjects' : `subjects/${editId}`;
                 payload = { name: form.title, academic_level_id: form.academic_level_id };
             } else if (type === 'academic_level') {
                 endpoint = 'academic-levels';
@@ -189,6 +194,27 @@ export default function CurriculumManager() {
         }
     };
 
+    const handleDelete = async (type, id) => {
+        const label = typeLabel[type] || type;
+        const confirmed = window.confirm(`This will permanently delete this ${label} and all nested content. Continue?`);
+        if (!confirmed) return;
+
+        try {
+            let endpoint = '';
+            if (type === 'subject') endpoint = `subjects/${id}`;
+            else if (type === 'unit') endpoint = `units/${id}`;
+            else if (type === 'subunit') endpoint = `subunits/${id}`;
+            else if (type === 'lesson') endpoint = `lessons/${id}`;
+
+            await api.delete(endpoint);
+            await fetchAll();
+            alert(`${label} deleted successfully.`);
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("Failed to delete item.");
+        }
+    };
+
     // ── Modal label helpers ───────────────────
     const typeLabel = {
         subject: 'Subject',
@@ -214,7 +240,7 @@ export default function CurriculumManager() {
                         Classes (Class Teacher) → Subjects (Subject Teachers) → Content Structure
                     </p>
                 </div>
-                {currentUser?.role !== 'teacher' && (
+                {isManagement && (
                     <div className="flex gap-2">
                         <Button variant="secondary" onClick={() => openModal('academic_level')}>
                             + Create New Class
@@ -279,11 +305,11 @@ export default function CurriculumManager() {
                                                 <div className="h-1 w-1 rounded-full bg-gray-300" />
                                                 <button
                                                     onClick={(e) => {
-                                                        if (currentUser?.role === 'teacher') return;
+                                                        if (!isManagement) return;
                                                         e.stopPropagation();
                                                         openModal('assign_class_teacher', 'edit', null, level);
                                                     }}
-                                                    className={`text-[10px] font-medium text-gray-500 ${currentUser?.role !== 'teacher' ? 'hover:text-school-primary hover:underline' : ''} transition-colors`}
+                                                    className={`text-[10px] font-medium text-gray-500 ${isManagement ? 'hover:text-school-primary hover:underline' : ''} transition-colors`}
                                                 >
                                                     Teacher: {level.class_teacher?.name || 'Unassigned'}
                                                 </button>
@@ -294,7 +320,7 @@ export default function CurriculumManager() {
                                         <span className={`hidden sm:inline text-[10px] font-bold px-2 py-0.5 rounded-full ${colors.badge}`}>
                                             {level.curriculum?.name || 'Framework'}
                                         </span>
-                                        {currentUser?.role !== 'teacher' && (
+                                        {isManagement && (
                                             <Button size="sm" variant="outline" onClick={() => {
                                                 openModal('subject');
                                                 setForm(f => ({ ...f, academic_level_id: level.id.toString() }));
@@ -340,24 +366,35 @@ export default function CurriculumManager() {
                                                                         <div className="h-0.5 w-0.5 rounded-full bg-gray-300" />
                                                                         <button
                                                                             onClick={(e) => {
-                                                                                if (currentUser?.role === 'teacher') return;
+                                                                                if (!isManagement) return;
                                                                                 e.stopPropagation();
                                                                                 openModal('assign_subject_teachers', 'edit', null, subject);
                                                                             }}
-                                                                            className={`text-[9px] font-medium text-blue-500 ${currentUser?.role !== 'teacher' ? 'hover:underline' : ''}`}
+                                                                            className={`text-[9px] font-medium text-blue-500 ${isManagement ? 'hover:underline' : ''}`}
                                                                         >
                                                                             Staff: {subject.teachers?.length ? subject.teachers.map(t => t.name.split(' ')[0]).join(', ') : 'Assign Teachers'}
                                                                         </button>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <Button
-                                                                size="sm" variant="ghost"
-                                                                onClick={() => openModal('unit', 'create', subject.id)}
-                                                                className="text-blue-600 hover:text-blue-800 text-xs flex-shrink-0"
-                                                            >
-                                                                + Add Unit
-                                                            </Button>
+                                                            <div className="flex gap-2 items-center flex-shrink-0">
+                                                                {isManagement && (
+                                                                    <button 
+                                                                        onClick={() => handleDelete('subject', subject.id)}
+                                                                        className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                                                                        title="Delete Subject"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                    </button>
+                                                                )}
+                                                                <Button
+                                                                    size="sm" variant="ghost"
+                                                                    onClick={() => openModal('unit', 'create', subject.id)}
+                                                                    className="text-blue-600 hover:text-blue-800 text-xs"
+                                                                >
+                                                                    + Add Unit
+                                                                </Button>
+                                                            </div>
                                                         </div>
 
                                                         {/* ── UNITS LIST ── */}
@@ -385,9 +422,12 @@ export default function CurriculumManager() {
                                                                                     </span>
                                                                                     <span className="text-[10px] text-gray-400 flex-shrink-0">{unit.sub_units?.length || 0} topics</span>
                                                                                 </div>
-                                                                                <div className="flex gap-2 flex-shrink-0">
-                                                                                    <button onClick={() => openModal('unit', 'edit', null, unit)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">Edit</button>
-                                                                                    <button onClick={() => openModal('subunit', 'create', unit.id)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">+ Topic</button>
+                                                                                <div className="flex gap-4 items-center flex-shrink-0">
+                                                                                    <button onClick={() => openModal('unit', 'edit', null, unit)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors font-medium">Edit</button>
+                                                                                    <button onClick={() => handleDelete('unit', unit.id)} className="text-gray-300 hover:text-red-500 transition-colors" title="Delete Unit">
+                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                                    </button>
+                                                                                    <button onClick={() => openModal('subunit', 'create', unit.id)} className="text-xs font-black text-indigo-600 hover:text-indigo-800 transition-colors uppercase italic">+ Topic</button>
                                                                                 </div>
                                                                             </div>
 
@@ -416,9 +456,12 @@ export default function CurriculumManager() {
                                                                                                         </span>
                                                                                                         <span className="text-[10px] text-gray-400 flex-shrink-0">{subUnit.lessons?.length || 0} lessons</span>
                                                                                                     </div>
-                                                                                                    <div className="flex gap-2 flex-shrink-0">
-                                                                                                        <button onClick={() => openModal('subunit', 'edit', null, subUnit)} className="text-xs text-gray-400 hover:text-purple-600 transition-colors">Edit</button>
-                                                                                                        <button onClick={() => openModal('lesson', 'create', subUnit.id)} className="text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors">+ Lesson</button>
+                                                                                                    <div className="flex gap-4 items-center flex-shrink-0">
+                                                                                                        <button onClick={() => openModal('subunit', 'edit', null, subUnit)} className="text-xs text-gray-400 hover:text-purple-600 transition-colors font-medium">Rename</button>
+                                                                                                        <button onClick={() => handleDelete('subunit', subUnit.id)} className="text-gray-300 hover:text-red-500 transition-colors" title="Delete Topic">
+                                                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                                                        </button>
+                                                                                                        <button onClick={() => openModal('lesson', 'create', subUnit.id)} className="text-xs font-black text-purple-600 hover:text-purple-800 transition-colors uppercase italic">+ Lesson</button>
                                                                                                     </div>
                                                                                                 </div>
 
@@ -439,16 +482,23 @@ export default function CurriculumManager() {
                                                                                                                         <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex-shrink-0">Draft</span>
                                                                                                                     )}
                                                                                                                 </div>
-                                                                                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-3 flex-shrink-0">
+                                                                                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-4 items-center flex-shrink-0">
                                                                                                                     <button
                                                                                                                         onClick={() => openModal('lesson', 'edit', null, lesson)}
-                                                                                                                        className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                                                                                                                        className="text-xs text-gray-400 hover:text-gray-700 transition-colors font-medium"
                                                                                                                     >
                                                                                                                         Rename
                                                                                                                     </button>
+                                                                                                                    <button 
+                                                                                                                        onClick={() => handleDelete('lesson', lesson.id)}
+                                                                                                                        className="text-gray-300 hover:text-red-500 transition-colors"
+                                                                                                                        title="Delete Lesson"
+                                                                                                                    >
+                                                                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                                                                    </button>
                                                                                                                     <button
                                                                                                                         onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}
-                                                                                                                        className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                                                                                                                        className="text-xs font-black text-blue-600 hover:text-blue-800 transition-colors uppercase italic"
                                                                                                                     >
                                                                                                                         Build Content →
                                                                                                                     </button>
@@ -505,11 +555,22 @@ export default function CurriculumManager() {
                                         </label>
                                         <input
                                             type="text" required autoFocus
+                                            list={modal.type === 'subject' ? 'subject-titles' : undefined}
                                             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-school-primary/30 focus:border-school-primary outline-none transition-all text-sm"
                                             value={form.title}
                                             onChange={e => setForm({ ...form, title: e.target.value })}
-                                            placeholder={`Enter ${typeLabel[modal.type]?.toLowerCase() || 'title'}…`}
+                                            placeholder={modal.type === 'subject' ? 'e.g. English, Mathematics...' : `Enter ${typeLabel[modal.type]?.toLowerCase() || 'title'}…`}
                                         />
+                                        {modal.type === 'subject' && (
+                                            <datalist id="subject-titles">
+                                                {subjectTitles.map(t => <option key={t.id} value={t.name} />)}
+                                            </datalist>
+                                        )}
+                                        {modal.type === 'subject' && (
+                                            <p className="mt-1 text-[10px] text-gray-400 italic">
+                                                Tip: Use standard names to keep the curriculum organized.
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 

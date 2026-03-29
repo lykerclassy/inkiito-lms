@@ -10,13 +10,26 @@ class Assignment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title', 'subject_id', 'teacher_id', 'type', 'due_date', 
-        'description', 'content', 'media_url', 'expected_submission_type'
+        'title', 
+        'subject_title_id', 
+        'academic_level_id',
+        'teacher_id', 
+        'type', 
+        'due_date', 
+        'description', 
+        'content', 
+        'media_url', 
+        'expected_submission_type'
     ];
 
-    public function subject()
+    public function subjectTitle()
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(SubjectTitle::class, 'subject_title_id');
+    }
+
+    public function academicLevel()
+    {
+        return $this->belongsTo(AcademicLevel::class, 'academic_level_id');
     }
 
     public function teacher()

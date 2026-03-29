@@ -22,7 +22,7 @@ function StatCard({ icon, value, label, color }) {
 export default function Dashboard() {
     const { user, refreshUser } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [stats, setStats] = useState({ recentActivity: null, upcomingDeadlines: [] });
+    const [stats, setStats] = useState({ recentActivity: null, upcomingDeadlines: [], liveClasses: [] });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { 
@@ -292,6 +292,43 @@ export default function Dashboard() {
                 {/* Right Sidebar */}
                 <div className="space-y-6">
 
+                    {/* Live Classes Widget */}
+                    {stats.liveClasses?.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-school-primary/30 shadow-lg shadow-school-primary/5 overflow-hidden ring-4 ring-school-primary/5">
+                            <div className="px-5 py-3.5 bg-school-primary text-white flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-white rounded-full animate-ping"></span>
+                                    <h2 className="text-xs font-black uppercase tracking-widest italic">Live Now</h2>
+                                </div>
+                                <span className="text-[10px] font-bold opacity-80 uppercase tracking-tighter">Enter Room</span>
+                            </div>
+                            <div className="p-4 space-y-3">
+                                {stats.liveClasses.map((lc) => (
+                                    <div key={lc.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-school-primary/30 transition-all group">
+                                        <p className="text-[9px] font-black text-school-primary uppercase tracking-[0.2em] mb-1">{lc.subject?.name}</p>
+                                        <h3 className="text-sm font-bold text-gray-900 mb-3">{lc.title}</h3>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-school-primary/10 flex items-center justify-center text-[10px] text-school-primary font-bold">
+                                                    {lc.teacher?.name?.charAt(0)}
+                                                </div>
+                                                <span className="text-[11px] font-medium text-gray-500">{lc.teacher?.name?.split(' ')[0]}</span>
+                                            </div>
+                                            <a 
+                                                href={lc.meeting_link} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="px-4 py-1.5 bg-school-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-school-primary/90 transition-all shadow-md shadow-school-primary/20"
+                                            >
+                                                Join
+                                            </a>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Career Goal */}
                     {user?.target_career ? (
                         <div className="rounded-2xl overflow-hidden shadow-sm"
@@ -341,12 +378,12 @@ export default function Dashboard() {
                                 { label: 'My Assignments', icon: '📋', path: '/student/assignments', badge: pendingAssignments > 0 ? pendingAssignments : null },
                                 { label: 'My Grades', icon: '📊', path: '/student/grades', badge: null },
                                 { label: 'Science Lab', icon: '🔬', path: '/student/science-lab', badge: null },
-                                { label: 'Library', icon: '📚', path: '/student/library', badge: null },
+                                { label: 'Library', icon: '📚', path: '/student/resources', badge: null },
                                 { label: 'Career Explorer', icon: '🎯', path: '/student/future-focus', badge: null },
-                                { label: 'Downloads', icon: '⬇️', path: '/student/downloads', badge: null },
+                                { label: 'Downloads', icon: '⬇️', path: '/student/resources', badge: null },
                             ].map((item) => (
                                 <button
-                                    key={item.path}
+                                    key={item.label}
                                     onClick={() => navigate(item.path)}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left group"
                                 >

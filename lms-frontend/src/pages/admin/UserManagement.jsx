@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -9,6 +10,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 
 export default function UserManagement() {
     const { user: currentUser } = useContext(AuthContext);
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('students');
     const [searchQuery, setSearchQuery] = useState('');
     const { showNotification, askConfirmation } = useNotification();
@@ -286,7 +288,9 @@ export default function UserManagement() {
     });
 
     // Compute which subjects the student is NOT currently enrolled in for the dropdown
+    // FILTER: Only show subjects matching the student's academic level (Grade/Form)
     const availableToAdd = allSubjects.filter(sub =>
+        sub.academic_level_id === selectedStudent?.academic_level_id &&
         !editingEnrollments.some(env => env.subject_id === sub.id)
     );
 
@@ -377,11 +381,19 @@ export default function UserManagement() {
                                                 <td className="px-6 py-4 text-green-600 font-medium text-sm">Active</td>
                                             </>
                                         )}
-                                        <td className="px-6 py-4 flex justify-end gap-2">
+                                        <td className="px-6 py-4 flex justify-end gap-2 items-center">
                                             {activeTab === 'students' && (
-                                                <Button size="sm" variant="outline" onClick={() => openEnrollmentModal(user)}>
-                                                    Enrollments
-                                                </Button>
+                                                <>
+                                                    <button 
+                                                        onClick={() => navigate(`/admin/users/${user.id}/profile`)}
+                                                        className="p-1 px-3 bg-school-primary text-white hover:bg-red-700 rounded border border-red-500 font-bold transition-all text-[10px] uppercase tracking-wider shadow-sm"
+                                                    >
+                                                        Profile
+                                                    </button>
+                                                    <Button size="sm" variant="outline" onClick={() => openEnrollmentModal(user)}>
+                                                        Enrollments
+                                                    </Button>
+                                                </>
                                             )}
                                             {/* Restrict DOS from editing/deleting administrative roles */}
                                             {!(currentUser?.role === 'dos' && ['admin', 'principal', 'deputy_principal', 'dos', 'developer'].includes(user.role)) && (
@@ -432,7 +444,9 @@ export default function UserManagement() {
                                         <optgroup label="Teaching Staff">
                                             <option value="teacher">Teacher</option>
                                             <option value="class_teacher">Class Teacher</option>
-                                            <option value="dos">Director of Studies (DOS)</option>
+                                            {currentUser?.role !== 'dos' && (
+                                                <option value="dos">Director of Studies (DOS)</option>
+                                            )}
                                         </optgroup>
                                         {currentUser?.role !== 'dos' && (
                                             <optgroup label="Administration">
@@ -523,9 +537,13 @@ export default function UserManagement() {
                                         <optgroup label="Staff">
                                             <option value="teacher">Teacher</option>
                                             <option value="class_teacher">Class Teacher</option>
-                                            <option value="dos">Director of Studies</option>
                                             {currentUser?.role !== 'dos' && (
-                                                <option value="admin">System Admin</option>
+                                                <>
+                                                    <option value="dos">Director of Studies</option>
+                                                    <option value="deputy_principal">Deputy Principal</option>
+                                                    <option value="principal">Principal</option>
+                                                    <option value="admin">System Admin</option>
+                                                </>
                                             )}
                                         </optgroup>
                                     </select>
@@ -699,7 +717,9 @@ export default function UserManagement() {
                                     >
                                         <option value="" disabled>Select subject to enroll...</option>
                                         {availableToAdd.map(sub => (
-                                            <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                            <option key={sub.id} value={sub.id}>
+                                                {sub.title?.name || sub.name} ({sub.academic_level?.name || 'Assigned Class'})
+                                            </option>
                                         ))}
                                     </select>
                                     <Button variant="outline" onClick={handleAddSubject} disabled={!subjectToAdd}>

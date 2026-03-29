@@ -100,6 +100,17 @@ class LessonController extends Controller
     }
 
     /**
+     * Delete a lesson.
+     */
+    public function destroy($id, Request $request)
+    {
+        $lesson = Lesson::with('subUnit.unit')->findOrFail($id);
+        if (!$this->canManageSubject($request->user(), $lesson->subUnit->unit->subject_id)) return response()->json(['message' => 'Forbidden'], 403);
+        $lesson->delete();
+        return response()->json(['message' => 'Deleted']);
+    }
+
+    /**
      * Helper to check if a user can manage a subject.
      */
     private function canManageSubject($user, $subjectId)
@@ -108,7 +119,7 @@ class LessonController extends Controller
             return true;
         }
 
-        if ($user->role === 'teacher') {
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
             return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
         }
 

@@ -135,6 +135,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Community::class);
     }
 
+    public function googleToken()
+    {
+        return $this->hasOne(GoogleToken::class);
+    }
+
     /**
      * Get the student's avatar URL.
      * Ensures consistent URLs across all environments.

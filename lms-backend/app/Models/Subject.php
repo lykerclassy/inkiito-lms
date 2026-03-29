@@ -9,15 +9,30 @@ class Subject extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
-        'name',
+        'subject_title_id',
         'academic_level_id',
     ];
+
+    protected $with = ['title'];
+
+    protected $appends = ['name'];
+
+    /**
+     * Get the subject title record for this subject instance.
+     */
+    public function title()
+    {
+        return $this->belongsTo(SubjectTitle::class, 'subject_title_id');
+    }
+
+    /**
+     * Get the name from the title record (backward compatibility).
+     */
+    public function getNameAttribute()
+    {
+        return $this->title?->name ?? 'Untitled Subject';
+    }
 
     /**
      * Get the academic level this subject belongs to (e.g., Grade 10, Form 3).

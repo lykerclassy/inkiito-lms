@@ -13,8 +13,13 @@ class SubjectController extends Controller
 {
     public function index()
     {
-        // Fetch all subjects with their full academic tree and teachers
-        return Subject::with(['academicLevel.curriculum', 'units.subUnits.lessons', 'teachers'])->get();
+        // Fetch all subjects with their full academic tree, teachers, and title
+        return Subject::with(['title', 'academicLevel.curriculum', 'units.subUnits.lessons', 'teachers'])->get();
+    }
+
+    public function subjectTitles()
+    {
+        return \App\Models\SubjectTitle::orderBy('name')->get();
     }
 
     public function academicLevels()
@@ -55,9 +60,16 @@ class SubjectController extends Controller
             'name' => 'required|string|max:255',
             'academic_level_id' => 'required|exists:academic_levels,id'
         ]);
+
+        // Find or create the standard title for this subject
+        $title = \App\Models\SubjectTitle::firstOrCreate(['name' => $request->name]);
         
-        $subject = Subject::create($request->all());
-        return response()->json(['message' => 'Subject created', 'subject' => $subject]);
+        $subject = Subject::create([
+            'subject_title_id' => $title->id,
+            'academic_level_id' => $request->academic_level_id
+        ]);
+
+        return response()->json(['message' => 'Subject created', 'subject' => $subject->load('title')]);
     }
 
     public function storeAcademicLevel(Request $request)
@@ -160,6 +172,39 @@ class SubjectController extends Controller
     }
 
     /**
+     * Delete a subject.
+     */
+    public function destroy($id, Request $request)
+    {
+        $subject = Subject::findOrFail($id);
+        if (!$this->canManageSubject($request->user(), $id)) return response()->json(['message' => 'Forbidden'], 403);
+        $subject->delete();
+        return response()->json(['message' => 'Deleted']);
+    }
+
+    /**
+     * Delete a unit.
+     */
+    public function destroyUnit($id, Request $request)
+    {
+        $unit = Unit::findOrFail($id);
+        if (!$this->canManageSubject($request->user(), $unit->subject_id)) return response()->json(['message' => 'Forbidden'], 403);
+        $unit->delete();
+        return response()->json(['message' => 'Deleted']);
+    }
+
+    /**
+     * Delete a sub-unit.
+     */
+    public function destroySubUnit($id, Request $request)
+    {
+        $subUnit = SubUnit::with('unit')->findOrFail($id);
+        if (!$this->canManageSubject($request->user(), $subUnit->unit->subject_id)) return response()->json(['message' => 'Forbidden'], 403);
+        $subUnit->delete();
+        return response()->json(['message' => 'Deleted']);
+    }
+
+    /**
      * Helper to check if a user can manage a subject.
      */
     private function canManageSubject($user, $subjectId)
@@ -168,7 +213,7 @@ class SubjectController extends Controller
             return true;
         }
 
-        if ($user->role === 'teacher') {
+        if (in_array($user->role, ['teacher', 'class_teacher'])) {
             return $user->taughtSubjects()->where('subjects.id', $subjectId)->exists();
         }
 

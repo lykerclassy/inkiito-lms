@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import api, { getMediaUrl } from '../../services/api';
@@ -7,6 +7,8 @@ import InstallAppButton from '../common/InstallAppButton';
 
 export default function AdminSidebar({ isOpen, toggleSidebar }) {
     const { user } = useContext(AuthContext);
+    const [openTicketCount, setOpenTicketCount] = useState(0);
+    const ticketPollRef = useRef(null);
 
     const role = user?.role;
     const isManagement = ['admin', 'developer', 'principal', 'deputy_principal', 'dos'].includes(role);
@@ -41,6 +43,20 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
 
         }).catch(err => console.error("Could not fetch school settings", err));
     }, []);
+
+    // Poll open ticket count for sysAdmins every 60 seconds
+    useEffect(() => {
+        if (!isSysAdmin) return;
+        const fetchCount = () => {
+            api.get('tickets').then(res => {
+                const open = res.data.filter(t => t.status === 'open').length;
+                setOpenTicketCount(open);
+            }).catch(() => {});
+        };
+        fetchCount();
+        ticketPollRef.current = setInterval(fetchCount, 60000);
+        return () => clearInterval(ticketPollRef.current);
+    }, [isSysAdmin]);
 
     const generateInitials = (name) => {
         const words = name.split(' ');
@@ -129,6 +145,19 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                         icon={<svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
                     />
 
+                    {/* ===== ACADEMIC MANAGEMENT SECTION ===== */}
+                    {(isManagement || isTeacher) && (
+                        <>
+                            <Divider />
+                            <SectionLabel label="Academic Management" />
+                            <NavItem
+                                to="/admin/curriculum"
+                                label="Curriculum Builder"
+                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
+                            />
+                        </>
+                    )}
+
                     {/* ===== MANAGEMENT SECTION ===== */}
                     {isManagement && (
                         <>
@@ -139,11 +168,6 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                                         isDos ? 'Academic Oversight' :
                                             'Management'
                             } />
-                            <NavItem
-                                to="/admin/curriculum"
-                                label="Curriculum"
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
-                            />
                             <NavItem
                                 to="/admin/users"
                                 label="User Management"
@@ -183,7 +207,6 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                         label="Gradebook"
                         icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
                     />
-
                     {/* ===== CONTENT TOOLS (All Staff — all teachers teach) ===== */}
                     <Divider />
                     <SectionLabel label="Content & Resources" />
@@ -191,6 +214,11 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                         to="/admin/science-labs"
                         label="Science Labs"
                         icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
+                    />
+                    <NavItem
+                        to="/admin/live-classes"
+                        label="Live Classes"
+                        icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>}
                     />
                     <NavItem
                         to="/admin/career-mapping"
@@ -228,6 +256,24 @@ export default function AdminSidebar({ isOpen, toggleSidebar }) {
                                 label="System Settings"
                                 icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                             />
+                            <NavLink
+                                to="/admin/tickets"
+                                className={({ isActive }) => `
+                                    flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest
+                                    transition-all duration-200 group
+                                    ${isActive ? 'bg-school-primary text-white shadow-lg shadow-school-primary/30' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}
+                                `}
+                            >
+                                <span className="flex items-center gap-3">
+                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5z" /></svg>
+                                    Support Tickets
+                                </span>
+                                {openTicketCount > 0 && (
+                                    <span className="min-w-[20px] h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1.5 animate-pulse">
+                                        {openTicketCount}
+                                    </span>
+                                )}
+                            </NavLink>
                         </>
                     )}
 

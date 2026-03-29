@@ -34,8 +34,8 @@ export default function Downloadables() {
                 search: search
             };
             const res = await api.get('downloadables', { params });
-            setResources(res.data.resources);
-            setSubjects(res.data.subjects);
+            setResources(res.data.resources || []);
+            setSubjects(res.data.subjects || []);
         } catch (err) {
             console.error("Failed to fetch downloadables", err);
         } finally {
@@ -141,8 +141,8 @@ export default function Downloadables() {
                         className="w-full h-full px-6 py-4 bg-white border-2 border-transparent focus:border-school-primary rounded-lg font-bold text-sm shadow-sm outline-none transition-all text-gray-700"
                     >
                         <option value="all">Every Subject</option>
-                        {subjects.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
+                        {subjects?.map(s => (
+                            <option key={s.id} value={s.subject_title_id || s.id}>{s.name}</option>
                         ))}
                     </select>
                 </div>
@@ -176,7 +176,7 @@ export default function Downloadables() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {resources.map(file => (
+                    {resources?.map(file => (
                         <Card key={file.id} className="group hover:-translate-y-1 transition-transform duration-300 border-none shadow-sm hover:shadow-md overflow-hidden relative">
                             {/* Category Badge Offset */}
                             <div className="absolute top-0 right-0 p-4">

@@ -14,26 +14,18 @@ use App\Http\Controllers\Api\TypingScoreController;
 use App\Http\Controllers\Api\AIController;
 use App\Http\Controllers\Api\HardwareItemController;
 use App\Http\Controllers\Api\ScienceLabController;
+use App\Http\Controllers\Api\LiveClassController;
+use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\PortfolioController;
+use App\Http\Controllers\Api\SupportController;
 
-// TEMPORARY: Emergency Developer Injection
-// Access this via browser: https://backend.inkiitomanohseniorschool.co.ke/api/inject-dev
-Route::get('/inject-dev', function () {
-    $user = \App\Models\User::updateOrCreate(
-        ['email' => 'developer@inkiitomanoh.com'],
-        [
-            'name' => 'System Developer',
-            'password' => \Illuminate\Support\Facades\Hash::make('Developer2026!'),
-            'role' => 'developer',
-        ]
-    );
-    return response()->json([
-        'message' => 'Developer user ready!',
-        'email' => $user->email,
-        'password' => 'Developer2026!'
-    ]);
-});
+
 
 Route::post('/login', [AuthController::class, 'login']);
+
+// --- GOOGLE OAUTH CALLBACKS (Public but handle redirection) ---
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
 // Public Branding & Settings (For Login Page)
 Route::get('/settings', [SettingController::class, 'index']);
@@ -64,11 +56,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/dashboard', [\App\Http\Controllers\Api\DashboardController::class, 'index']);
 
-    // --- CURRICULUM MANAGER (All Staff can view; All staff can build content for their subjects) ---
-    Route::get('/subjects', [SubjectController::class, 'index']);
-    Route::get('/subjects/{id}', [SubjectController::class, 'show']);
+    // --- STAFF ROUTES ---
+    Route::get('/subjects/titles', [SubjectController::class, 'subjectTitles']);
     Route::get('/academic-levels', [SubjectController::class, 'academicLevels']);
+    Route::get('/subjects', [SubjectController::class, 'index']);
+    Route::get('/subjects/{id}', [SubjectController::class, 'show'])->where('id', '[0-9]+');
     Route::get('/staff-list', [UserController::class, 'getStaff']);
+    Route::get('/settings/curriculums', [SettingController::class, 'getCurriculums']);
 
     // Subject/Unit CREATION restricted to management (they define the structure)
     Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer,principal,deputy_principal,dos')->group(function () {
@@ -82,12 +76,16 @@ Route::middleware('auth:sanctum')->group(function () {
         // NEW: Teacher Assignments
         Route::put('/academic-levels/{id}/teacher', [SubjectController::class, 'assignClassTeacher']);
         Route::put('/subjects/{id}/teachers', [SubjectController::class, 'assignSubjectTeachers']);
+        Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
+        Route::delete('/units/{id}', [SubjectController::class, 'destroyUnit']);
+        Route::delete('/subunits/{id}', [SubjectController::class, 'destroySubUnit']);
     });
 
     // --- LESSON BUILDER (All Staff — Teachers fill in lesson content) ---
     Route::get('/lessons/{id}', [LessonController::class, 'show']);
     Route::post('/lessons', [LessonController::class, 'store']);
     Route::put('/lessons/{id}', [LessonController::class, 'update']);
+    Route::delete('/lessons/{id}', [LessonController::class, 'destroy']);
     Route::post('/lessons/{id}/blocks', [LessonController::class, 'updateBlocks']);
     Route::post('/lessons/{id}/complete', [LessonController::class, 'complete']);
 
@@ -106,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/career-tracks/{id}', [\App\Http\Controllers\Api\CareerController::class, 'destroyTrack']);
         Route::post('/users/import-csv', [UserController::class, 'importCSV']);
         Route::put('/users/{id}/enrollments', [UserController::class, 'updateEnrollments']);
+        Route::get('/users/{id}/profile', [\App\Http\Controllers\Api\StudentProfileController::class, 'show']);
     });
     Route::post('/user/profile', [UserController::class, 'updateProfile']); // Own profile — all users
 
@@ -126,9 +125,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/student/assignments', [AssignmentController::class, 'studentAssignments']);
     Route::post('/assignments/{id}/submit', [AssignmentController::class, 'submitWork']);
 
-    // --- SETTINGS (Admins & Developer Only) ---
+    // --- SETTINGS (Admins & Developer Only — Update actions) ---
     Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer')->group(function () {
-        Route::get('/settings/curriculums', [SettingController::class, 'getCurriculums']);
         Route::post('/settings', [SettingController::class, 'update']);
     });
 
@@ -143,15 +141,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/typing-leaderboard', [TypingScoreController::class, 'leaderboard']);
 
     // --- CAMPUS COMMUNITIES ---
+
     Route::get('/communities', [\App\Http\Controllers\Api\CommunityController::class, 'index']);
-    Route::post('/communities', [\App\Http\Controllers\Api\CommunityController::class, 'store']);
-    Route::post('/communities/{id}', [\App\Http\Controllers\Api\CommunityController::class, 'update']); // Use POST because of multipart/form-data for image uploads
     Route::get('/communities/{id}', [\App\Http\Controllers\Api\CommunityController::class, 'show']);
+    Route::post('/communities', [\App\Http\Controllers\Api\CommunityController::class, 'store']);
+    Route::post('/communities/{id}', [\App\Http\Controllers\Api\CommunityController::class, 'update']);
+    Route::delete('/communities/{id}', [\App\Http\Controllers\Api\CommunityController::class, 'destroy']);
     Route::post('/communities/{id}/join', [\App\Http\Controllers\Api\CommunityController::class, 'join']);
     Route::post('/communities/{id}/leave', [\App\Http\Controllers\Api\CommunityController::class, 'leave']);
     Route::post('/communities/{id}/posts', [\App\Http\Controllers\Api\CommunityController::class, 'storePost']);
+    Route::post('/communities/{id}/posts/{postId}', [\App\Http\Controllers\Api\CommunityController::class, 'updatePost']);
     Route::delete('/communities/{id}/posts/{postId}', [\App\Http\Controllers\Api\CommunityController::class, 'destroyPost']);
     Route::post('/communities/{id}/posts/{postId}/replies', [\App\Http\Controllers\Api\CommunityController::class, 'storeReply']);
+    Route::put('/communities/{id}/posts/{postId}/replies/{replyId}', [\App\Http\Controllers\Api\CommunityController::class, 'updateReply']);
+    Route::delete('/communities/{id}/posts/{postId}/replies/{replyId}', [\App\Http\Controllers\Api\CommunityController::class, 'destroyReply']);
     Route::post('/communities/{id}/events', [\App\Http\Controllers\Api\CommunityEventController::class, 'store']);
 
     // --- AI / INTELLIGENCE ---
@@ -230,4 +233,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'adminIndex']);
     Route::post('/admin/downloadables', [\App\Http\Controllers\Api\DownloadableController::class, 'store']);
     Route::delete('/admin/downloadables/{id}', [\App\Http\Controllers\Api\DownloadableController::class, 'destroy']);
+
+    // --- LIVE CLASSES (Google Meet Integration) ---
+    Route::get('/live-classes', [LiveClassController::class, 'index']);
+    Route::apiResource('live-classes', LiveClassController::class);
+
+    // CBC Museum Portfolio
+    Route::get('/portfolios', [PortfolioController::class, 'index']);
+    Route::post('/portfolios', [PortfolioController::class, 'store']);
+    Route::delete('/portfolios/{id}', [PortfolioController::class, 'destroy']);
+    
+    Route::get('/google/status', [GoogleAuthController::class, 'status']);
+    // Support Tickets
+    Route::get('/tickets', [SupportController::class, 'index']);
+    Route::post('/tickets', [SupportController::class, 'store']);
+    Route::put('/tickets/{id}', [SupportController::class, 'update']);
 });
