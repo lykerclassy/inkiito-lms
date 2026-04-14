@@ -62,7 +62,7 @@ export default function AssignmentView() {
             catch (e) { parsedBlocks = []; }
 
             const formattedAnswers = parsedBlocks
-                .filter(block => !block.type.includes('info'))
+                .filter(block => !block.type?.includes('info'))
                 .map(block => ({
                     blockId: block.id,
                     qText: block.title || block.question,
@@ -152,7 +152,7 @@ export default function AssignmentView() {
                             ) : (
                                 <>
                                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest italic">Total Points Available</span>
-                                    <span className="bg-gray-100 text-gray-900 text-2xl font-black px-6 py-2 rounded-full border border-gray-200 shadow-inner italic">{blocks.reduce((sum, b) => sum + (Number(b.points) || 0), 0)}</span>
+                                    <span className="bg-gray-100 text-gray-900 text-2xl font-black px-6 py-2 rounded-full border border-gray-200 shadow-inner italic">{blocks.reduce((sum, b) => sum + (b.type?.includes('info') ? 0 : (Number(b.points) || 0)), 0)}</span>
                                 </>
                             )}
                         </div>
@@ -174,6 +174,45 @@ export default function AssignmentView() {
                     </div>
                 )}
 
+                {/* Main External Link (Google Form, etc.) */}
+                {assignment.google_form_url && (() => {
+                    let mainSrc = assignment.google_form_url;
+                    if (mainSrc.includes('<iframe') && mainSrc.match(/src=["']([^"']+)["']/)) {
+                        mainSrc = mainSrc.match(/src=["']([^"']+)["']/)[1];
+                    }
+                    return (
+                        <div className="w-full bg-white shadow-xl shadow-indigo-100/50 border-2 border-indigo-50 hover:border-school-primary/50 transition-all overflow-hidden mt-6 mb-8 rounded-[2.5rem] flex flex-col relative z-20 group">
+                            <div className="p-8 md:p-14 flex flex-col items-center text-center gap-6">
+                                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-school-primary shadow-inner">
+                                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                </div>
+                                <div className="max-w-xl space-y-3">
+                                    <h3 className="text-2xl font-black text-gray-900 leading-snug">External Assessment Link</h3>
+                                    <p className="text-gray-500 font-semibold text-lg leading-relaxed">
+                                        Your instructor has provided an external link for this assessment. 
+                                        Please click the button below to open it in a new tab.
+                                    </p>
+                                </div>
+                                <a 
+                                    href={mainSrc} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="bg-school-primary hover:bg-school-secondary text-white font-black uppercase tracking-widest px-10 py-5 rounded-full shadow-lg shadow-indigo-200 hover:-translate-y-1 hover:scale-105 transition-all md:text-lg flex items-center gap-3 mt-2"
+                                >
+                                    Open Assessment Link
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                </a>
+                                {assignment.status === 'pending' && (
+                                    <div className="p-4 bg-yellow-50 text-yellow-800 text-base font-bold rounded-2xl w-full border border-yellow-200 flex flex-col gap-1 items-center mt-6">
+                                        <span className="uppercase tracking-widest text-[10px] font-black opacity-60">Important Notice</span>
+                                        <span>After completing the assessment in the new tab, you <strong>must</strong> return to this page and click "Mark as Completed" below!</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {/* Assignment Workspace */}
                 <div className="space-y-6">
                     {blocks.map((block) => {
@@ -183,7 +222,7 @@ export default function AssignmentView() {
                         return (
                             <div key={block.id} className="w-full bg-white rounded-3xl shadow-sm border border-gray-100 hover:border-school-primary/30 hover:shadow-md transition-all p-6 md:p-8">
 
-                                {block.type.includes('info') && (
+                                {block.type?.includes('info') && (
                                     <div className="max-w-2xl">
                                         <h3 className="text-2xl font-black text-gray-900 leading-snug tracking-tight mb-4"><MathText text={block.title} /></h3>
                                         <div className="text-gray-600 font-medium leading-relaxed"><MathText text={block.description} /></div>
@@ -242,8 +281,10 @@ export default function AssignmentView() {
                                     );
                                 })()}
 
+
+
                                 {/* --- Question Blocks --- */}
-                                {!block.type.includes('info') && (
+                                {!block.type?.includes('info') && (
                                     <div>
                                         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 md:mb-8">
                                             <div className="flex-1 min-w-0">
@@ -486,13 +527,13 @@ export default function AssignmentView() {
 
                 {/* Finalization Node */}
                 {assignment.status === 'pending' && (
-                    <div className="flex justify-center pt-8 pb-16">
+                    <div className="flex flex-col items-center justify-center pt-8 pb-16">
                         <Button
-                            className="bg-school-primary hover:bg-red-600 text-white font-black uppercase text-sm tracking-widest px-10 py-6 rounded-full shadow-xl shadow-red-200 transition-all hover:-translate-y-1 active:translate-y-0"
+                            className="bg-school-primary hover:bg-green-600 text-white font-black uppercase text-sm md:text-base tracking-widest px-12 py-6 rounded-full shadow-xl shadow-green-200 transition-all hover:-translate-y-1 active:translate-y-0"
                             onClick={handleHandInWork}
                             isLoading={isSubmitting}
                         >
-                            Submit Assessment
+                            {(assignment.google_form_url && blocks.filter(b => !b.type?.includes('info')).length === 0) ? "Mark as Completed" : "Submit Assessment"}
                         </Button>
                     </div>
                 )}

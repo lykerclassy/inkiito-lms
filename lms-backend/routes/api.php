@@ -18,8 +18,7 @@ use App\Http\Controllers\Api\LiveClassController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\PortfolioController;
 use App\Http\Controllers\Api\SupportController;
-
-
+use App\Http\Controllers\Api\GamificationController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -62,20 +61,27 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/subjects', [SubjectController::class, 'index']);
     Route::get('/subjects/{id}', [SubjectController::class, 'show'])->where('id', '[0-9]+');
     Route::get('/staff-list', [UserController::class, 'getStaff']);
+    Route::get('/online-students', [UserController::class, 'getOnlineStudents']);
+    Route::get('/attendance', [\App\Http\Controllers\Api\AttendanceController::class, 'index']);
     Route::get('/settings/curriculums', [SettingController::class, 'getCurriculums']);
 
-    // Subject/Unit CREATION restricted to management (they define the structure)
-    Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer,principal,deputy_principal,dos')->group(function () {
+    // Subject/Unit CREATION & MANAGEMENT
+    Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer,principal,deputy_principal,dos,teacher,class_teacher')->group(function () {
         Route::post('/subjects', [SubjectController::class, 'store']);
+        Route::put('/subjects/{id}', [SubjectController::class, 'update']);
         Route::post('/academic-levels', [SubjectController::class, 'storeAcademicLevel']);
+        Route::delete('/academic-levels/{id}', [SubjectController::class, 'destroyAcademicLevel']); // NEW: Delete Class
+        
         Route::post('/units', [SubjectController::class, 'storeUnit']);
         Route::put('/units/{id}', [SubjectController::class, 'updateUnit']);
         Route::post('/subunits', [SubjectController::class, 'storeSubUnit']);
         Route::put('/subunits/{id}', [SubjectController::class, 'updateSubUnit']);
         
-        // NEW: Teacher Assignments
+        // NEW: Teacher Assignments (Still management only logic maybe? No, let's keep it here but controller checks role)
         Route::put('/academic-levels/{id}/teacher', [SubjectController::class, 'assignClassTeacher']);
         Route::put('/subjects/{id}/teachers', [SubjectController::class, 'assignSubjectTeachers']);
+        
+        // DELETE ACTIONS
         Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
         Route::delete('/units/{id}', [SubjectController::class, 'destroyUnit']);
         Route::delete('/subunits/{id}', [SubjectController::class, 'destroySubUnit']);
@@ -124,6 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Student Routes
     Route::get('/student/assignments', [AssignmentController::class, 'studentAssignments']);
     Route::post('/assignments/{id}/submit', [AssignmentController::class, 'submitWork']);
+    Route::get('/student/curriculum-subjects', [SubjectController::class, 'studentCurriculumSubjects']);
 
     // --- SETTINGS (Admins & Developer Only — Update actions) ---
     Route::middleware(\App\Http\Middleware\RoleMiddleware::class . ':admin,developer')->group(function () {
@@ -138,6 +145,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- TYPING TRACKER ---
     Route::get('/typing-scores', [TypingScoreController::class, 'index']);
     Route::post('/typing-scores', [TypingScoreController::class, 'store']);
+
+    // --- GAMIFICATION ---
+    Route::get('/gamification/wheel', [GamificationController::class, 'getWheelQuestions']);
+    Route::post('/gamification/spin-answer', [GamificationController::class, 'submitSpinAnswer']);
     Route::get('/typing-leaderboard', [TypingScoreController::class, 'leaderboard']);
 
     // --- CAMPUS COMMUNITIES ---

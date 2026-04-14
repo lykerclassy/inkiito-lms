@@ -12,6 +12,11 @@ class Subject extends Model
     protected $fillable = [
         'subject_title_id',
         'academic_level_id',
+        'is_compulsory',
+    ];
+
+    protected $casts = [
+        'is_compulsory' => 'boolean',
     ];
 
     protected $with = ['title'];

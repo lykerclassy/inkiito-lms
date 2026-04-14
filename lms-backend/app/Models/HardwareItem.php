@@ -13,6 +13,9 @@ class HardwareItem extends Model
         'name',
         'description',
         'image_url',
+        'video_url',
+        'file_path',
+        'type',
         'category',
         'is_active'
     ];
@@ -24,6 +27,15 @@ class HardwareItem extends Model
     {
         if (!$value) return null;
         if (filter_var($value, FILTER_VALIDATE_URL)) return $value;
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($value);
+    }
+
+    /**
+     * Get the downloadable safety guide URL.
+     */
+    public function getFilePathAttribute($value)
+    {
+        if (!$value) return null;
         return \Illuminate\Support\Facades\Storage::disk('public')->url($value);
     }
 }

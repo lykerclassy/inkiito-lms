@@ -5,6 +5,7 @@ import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import { useNotification } from '../../contexts/NotificationContext';
 import confetti from 'canvas-confetti';
+import MathText from '../../components/common/MathText';
 
 export default function QuizPlayer() {
     const { id } = useParams();
@@ -198,7 +199,9 @@ export default function QuizPlayer() {
                                                 {idx + 1}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-gray-900 text-lg leading-snug">{q.question_text}</p>
+                                                <p className="font-bold text-gray-900 text-lg leading-snug">
+                                                    <MathText text={q.question_text} />
+                                                </p>
                                             </div>
                                         </div>
 
@@ -206,13 +209,15 @@ export default function QuizPlayer() {
                                             <div className="p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
                                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2">Your Answer</span>
                                                 <span className={`font-bold ${isCorrect ? 'text-green-600' : 'text-red-500 line-through opacity-70'}`}>
-                                                    {detail.student_answer || "Skipped"}
+                                                    {detail.student_answer ? <MathText text={detail.student_answer} /> : "Skipped"}
                                                 </span>
                                             </div>
                                             {!isCorrect && (
                                                 <div className="p-4 rounded-2xl bg-green-50 border border-green-100 shadow-sm ring-2 ring-green-100">
                                                     <span className="text-[10px] font-black uppercase text-green-600 tracking-widest block mb-2">Correct Answer</span>
-                                                    <span className="font-bold text-green-700">{detail.correct_answer}</span>
+                                                    <span className="font-bold text-green-700">
+                                                        <MathText text={detail.correct_answer} />
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -327,7 +332,7 @@ export default function QuizPlayer() {
                             {currentIndex + 1}
                         </div>
                         <h3 className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight italic tracking-tight mb-4">
-                            {currentQuestion.question_text}
+                            <MathText text={currentQuestion.question_text} />
                         </h3>
                         {currentQuestion.image_path && (
                             <div className="mb-6 max-w-xl mx-auto rounded-3xl overflow-hidden border border-gray-100 bg-white">
@@ -356,7 +361,9 @@ export default function QuizPlayer() {
                                         }`}>
                                         {String.fromCharCode(65 + idx)}
                                     </div>
-                                    <span className="text-base font-semibold leading-tight">{opt}</span>
+                                    <span className="text-base font-semibold leading-tight">
+                                        <MathText text={opt} />
+                                    </span>
                                 </div>
                                 {answers[currentQuestion.id] === opt && (
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20">

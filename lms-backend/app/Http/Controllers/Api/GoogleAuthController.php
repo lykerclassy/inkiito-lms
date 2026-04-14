@@ -23,9 +23,10 @@ class GoogleAuthController extends Controller
 
         return response()->json([
             'url' => Socialite::driver('google')
+                ->redirectUrl(url('/api/auth/google/callback')) // Dynamically use the current domain
                 ->scopes(['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'])
-                ->with(['access_type' => 'offline', 'prompt' => 'consent']) // Offline to get refresh_token
-                ->stateless() // Because it's an API
+                ->with(['access_type' => 'offline', 'prompt' => 'consent'])
+                ->stateless()
                 ->redirect()
                 ->getTargetUrl()
         ]);
@@ -37,7 +38,10 @@ class GoogleAuthController extends Controller
     public function callback(Request $request)
     {
         try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
+            $googleUser = Socialite::driver('google')
+                ->redirectUrl(url('/api/auth/google/callback'))
+                ->stateless()
+                ->user();
             
             // To link the Google account to a local user, we need their local user_id. 
             // In a real SPA, we might use a temporary cookie or specific state. 
@@ -46,7 +50,12 @@ class GoogleAuthController extends Controller
             
             // Step 3: Match based on email.
             $user = User::where('email', $googleUser->email)->first();
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+            
+            // Derive Frontend URL: Use .env if provided, otherwise try to guess from APP_URL or current host
+            $frontendUrl = env('FRONTEND_URL');
+            if (!$frontendUrl) {
+                $frontendUrl = str_replace(['/api', ':8000'], ['', ':5173'], url('/'));
+            }
             
             if (!$user) {
                 return redirect($frontendUrl . '/admin/profile?status=error&message=No matching school account found for this Google email.');
@@ -68,7 +77,7 @@ class GoogleAuthController extends Controller
 
         } catch (\Exception $e) {
             \Log::error("Google Auth Error: " . $e->getMessage());
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+            $frontendUrl = env('FRONTEND_URL') ?: str_replace(['/api', ':8000'], ['', ':5173'], url('/'));
             return redirect($frontendUrl . '/admin/profile?status=error&message=' . urlencode($e->getMessage()));
         }
     }

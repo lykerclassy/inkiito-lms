@@ -54,8 +54,21 @@ export default function CurriculumManager() {
 
     // ── Modal ─────────────────────────────────
     const [modal, setModal] = useState({ isOpen: false, type: '', mode: 'create', parentId: null, editId: null });
-    const [form, setForm] = useState({ title: '', academic_level_id: '', teacher_id: '', teacher_ids: [] });
+    const [form, setForm] = useState({ title: '', academic_level_id: '', teacher_id: '', teacher_ids: [], is_compulsory: false });
     const [isSaving, setIsSaving] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState({ id: null, type: null }); // For two-step delete confirmation
+
+    // ── Labels ───────────────────────────────
+    // ── Labels ───────────────────────────────
+    const typeLabel = {
+        subject: 'Subject',
+        unit: 'Unit / Strand',
+        subunit: 'Topic / Sub-Strand',
+        lesson: 'Lesson',
+        academic_level: 'Class / Grade Level',
+        assign_class_teacher: 'Class Teacher',
+        assign_subject_teachers: 'Subject Teachers'
+    };
 
     // ── Fetch ─────────────────────────────────
     const fetchAll = async () => {
@@ -131,16 +144,17 @@ export default function CurriculumManager() {
     const openModal = (type, mode = 'create', parentId = null, existingItem = null) => {
         setModal({ isOpen: true, type, mode, parentId, editId: existingItem?.id || null });
         setForm({
-            title: existingItem?.title || existingItem?.name || '',
+            title: (typeof existingItem?.title === 'object' ? (existingItem.title?.name || '') : existingItem?.title) || existingItem?.name || '',
             academic_level_id: existingItem?.academic_level_id || (academicLevels[0]?.id || '').toString(),
             teacher_id: existingItem?.class_teacher_id || '',
-            teacher_ids: existingItem?.teachers?.map(t => t.id) || []
+            teacher_ids: existingItem?.teachers?.map(t => t.id) || [],
+            is_compulsory: !!existingItem?.is_compulsory
         });
     };
 
     const closeModal = () => {
         setModal({ isOpen: false, type: '', mode: 'create', parentId: null, editId: null });
-        setForm({ title: '', academic_level_id: '', curriculum_id: '', teacher_id: '', teacher_ids: [] });
+        setForm({ title: '', academic_level_id: '', curriculum_id: '', teacher_id: '', teacher_ids: [], is_compulsory: false });
     };
 
     // ── Submit ────────────────────────────────
@@ -155,7 +169,7 @@ export default function CurriculumManager() {
 
             if (type === 'subject') {
                 endpoint = mode === 'create' ? 'subjects' : `subjects/${editId}`;
-                payload = { name: form.title, academic_level_id: form.academic_level_id };
+                payload = { name: form.title, academic_level_id: form.academic_level_id, is_compulsory: form.is_compulsory };
             } else if (type === 'academic_level') {
                 endpoint = 'academic-levels';
                 payload = { name: form.title, curriculum_id: form.curriculum_id };
@@ -188,16 +202,29 @@ export default function CurriculumManager() {
             closeModal();
         } catch (err) {
             console.error('Save failed:', err);
-            alert('Failed to save. Please check your connection and try again.');
+            const msg = err.response?.data?.message || 'Check your connection and try again.';
+            alert(`Failed to save: ${msg}`);
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleDelete = async (type, id) => {
+    const handleDelete = async (e, type, id) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Two-step confirmation logic
+        if (deleteConfirm.id !== id) {
+            setDeleteConfirm({ id, type });
+            // Auto-reset after 3 seconds if not clicked again
+            setTimeout(() => setDeleteConfirm({ id: null, type: null }), 3000);
+            return;
+        }
+        
         const label = typeLabel[type] || type;
-        const confirmed = window.confirm(`This will permanently delete this ${label} and all nested content. Continue?`);
-        if (!confirmed) return;
+        setDeleteConfirm({ id: null, type: null }); // Reset state immediately
 
         try {
             let endpoint = '';
@@ -205,26 +232,18 @@ export default function CurriculumManager() {
             else if (type === 'unit') endpoint = `units/${id}`;
             else if (type === 'subunit') endpoint = `subunits/${id}`;
             else if (type === 'lesson') endpoint = `lessons/${id}`;
+            else if (type === 'academic_level') endpoint = `academic-levels/${id}`;
 
             await api.delete(endpoint);
             await fetchAll();
-            alert(`${label} deleted successfully.`);
         } catch (err) {
-            console.error("Delete error:", err);
-            alert("Failed to delete item.");
+            console.error("Delete operation failed:", err);
+            const msg = err.response?.data?.message || err.response?.data?.error || "Connection error or server failure.";
+            alert(`Delete failed: ${msg}`);
         }
     };
 
-    // ── Modal label helpers ───────────────────
-    const typeLabel = {
-        subject: 'Subject',
-        academic_level: 'Class / Grade Level',
-        unit: 'Unit / Strand',
-        subunit: 'Topic / Sub-Strand',
-        lesson: 'Lesson',
-        assign_class_teacher: 'Class Teacher',
-        assign_subject_teachers: 'Subject Teachers'
-    };
+
 
     if (isLoading) return <PageLoader message="Loading curriculum structure..." color="red" />;
     if (error) return <div className="p-4 text-red-500 font-medium bg-red-50 rounded-xl">{error}</div>;
@@ -321,12 +340,26 @@ export default function CurriculumManager() {
                                             {level.curriculum?.name || 'Framework'}
                                         </span>
                                         {isManagement && (
-                                            <Button size="sm" variant="outline" onClick={() => {
-                                                openModal('subject');
-                                                setForm(f => ({ ...f, academic_level_id: level.id.toString() }));
-                                            }}>
-                                                + Add Subject
-                                            </Button>
+                                            <div className="flex items-center gap-1">
+                                                <Button 
+                                                    size="sm" 
+                                                    variant={deleteConfirm.id === level.id ? 'primary' : 'ghost'} 
+                                                    className={`transition-all duration-200 ${deleteConfirm.id === level.id ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'text-gray-300 hover:text-red-500'}`} 
+                                                    onClick={(e) => handleDelete(e, 'academic_level', level.id)}
+                                                >
+                                                    {deleteConfirm.id === level.id ? (
+                                                        <span className="text-[10px] px-1 font-bold">Confirm Delete?</span>
+                                                    ) : (
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                    )}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => {
+                                                    openModal('subject');
+                                                    setForm(f => ({ ...f, academic_level_id: level.id.toString() }));
+                                                }}>
+                                                    + Add Subject
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -360,7 +393,12 @@ export default function CurriculumManager() {
                                                                     {subject.name.charAt(0)}
                                                                 </div>
                                                                 <div className="min-w-0">
-                                                                    <p className="font-semibold text-gray-800 text-sm">{subject.name}</p>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <p className="font-semibold text-gray-800 text-sm">{subject.name}</p>
+                                                                        {subject.is_compulsory && (
+                                                                            <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">Compulsory</span>
+                                                                        )}
+                                                                    </div>
                                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                                         <p className="text-[10px] text-gray-400">{subject.units?.length || 0} unit{subject.units?.length !== 1 ? 's' : ''}</p>
                                                                         <div className="h-0.5 w-0.5 rounded-full bg-gray-300" />
@@ -374,17 +412,32 @@ export default function CurriculumManager() {
                                                                         >
                                                                             Staff: {subject.teachers?.length ? subject.teachers.map(t => t.name.split(' ')[0]).join(', ') : 'Assign Teachers'}
                                                                         </button>
+                                                                        {isManagement && (
+                                                                            <>
+                                                                                <div className="h-0.5 w-0.5 rounded-full bg-gray-300" />
+                                                                                <button 
+                                                                                    onClick={(e) => { e.stopPropagation(); openModal('subject', 'edit', null, subject); }}
+                                                                                    className="text-[9px] font-medium text-gray-400 hover:text-school-primary"
+                                                                                >
+                                                                                    Settings
+                                                                                </button>
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                             <div className="flex gap-2 items-center flex-shrink-0">
                                                                 {isManagement && (
                                                                     <button 
-                                                                        onClick={() => handleDelete('subject', subject.id)}
-                                                                        className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                                                                        onClick={(e) => handleDelete(e, 'subject', subject.id)}
+                                                                        className={`p-1.5 rounded-lg transition-all flex items-center gap-1.5 ${deleteConfirm.id === subject.id ? 'bg-red-600 text-white animate-bounce' : 'text-gray-300 hover:text-red-500'}`}
                                                                         title="Delete Subject"
                                                                     >
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                        {deleteConfirm.id === subject.id ? (
+                                                                            <span className="text-[10px] font-bold px-1 uppercase tracking-tighter">Confirm Delete?</span>
+                                                                        ) : (
+                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                        )}
                                                                     </button>
                                                                 )}
                                                                 <Button
@@ -424,9 +477,19 @@ export default function CurriculumManager() {
                                                                                 </div>
                                                                                 <div className="flex gap-4 items-center flex-shrink-0">
                                                                                     <button onClick={() => openModal('unit', 'edit', null, unit)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors font-medium">Edit</button>
-                                                                                    <button onClick={() => handleDelete('unit', unit.id)} className="text-gray-300 hover:text-red-500 transition-colors" title="Delete Unit">
-                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                                                    </button>
+                                                                                    {isManagement && (
+                                                                                        <button 
+                                                                                            onClick={(e) => handleDelete(e, 'unit', unit.id)} 
+                                                                                            className={`p-1.5 rounded-lg transition-all flex items-center gap-1.5 ${deleteConfirm.id === unit.id ? 'bg-red-600 text-white' : 'text-gray-300 hover:text-red-500'}`}
+                                                                                            title="Delete Unit"
+                                                                                        >
+                                                                                            {deleteConfirm.id === unit.id ? (
+                                                                                                <span className="text-[10px] font-bold">Confirm Unit Delete?</span>
+                                                                                            ) : (
+                                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                                            )}
+                                                                                        </button>
+                                                                                    )}
                                                                                     <button onClick={() => openModal('subunit', 'create', unit.id)} className="text-xs font-black text-indigo-600 hover:text-indigo-800 transition-colors uppercase italic">+ Topic</button>
                                                                                 </div>
                                                                             </div>
@@ -458,9 +521,19 @@ export default function CurriculumManager() {
                                                                                                     </div>
                                                                                                     <div className="flex gap-4 items-center flex-shrink-0">
                                                                                                         <button onClick={() => openModal('subunit', 'edit', null, subUnit)} className="text-xs text-gray-400 hover:text-purple-600 transition-colors font-medium">Rename</button>
-                                                                                                        <button onClick={() => handleDelete('subunit', subUnit.id)} className="text-gray-300 hover:text-red-500 transition-colors" title="Delete Topic">
-                                                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                                                                        </button>
+                                                                                                        {isManagement && (
+                                                                                                            <button 
+                                                                                                                onClick={(e) => handleDelete(e, 'subunit', subUnit.id)} 
+                                                                                                                className={`p-1.5 rounded-lg transition-all flex items-center gap-1.5 ${deleteConfirm.id === subUnit.id ? 'bg-red-600 text-white' : 'text-gray-300 hover:text-red-500'}`}
+                                                                                                                title="Delete Topic"
+                                                                                                            >
+                                                                                                                {deleteConfirm.id === subUnit.id ? (
+                                                                                                                    <span className="text-[10px] font-bold">Confirm Topic Delete?</span>
+                                                                                                                ) : (
+                                                                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                                                                )}
+                                                                                                            </button>
+                                                                                                        )}
                                                                                                         <button onClick={() => openModal('lesson', 'create', subUnit.id)} className="text-xs font-black text-purple-600 hover:text-purple-800 transition-colors uppercase italic">+ Lesson</button>
                                                                                                     </div>
                                                                                                 </div>
@@ -475,7 +548,7 @@ export default function CurriculumManager() {
                                                                                                             <div key={lesson.id} className="flex items-center justify-between px-4 py-2.5 group hover:bg-gray-50 transition-colors rounded-md">
                                                                                                                 <div className="flex items-center gap-2 min-w-0">
                                                                                                                     <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-1-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                                                                                     </svg>
                                                                                                                     <span className="text-sm text-gray-700 truncate">{lesson.title}</span>
                                                                                                                     {!lesson.is_published && (
@@ -490,7 +563,7 @@ export default function CurriculumManager() {
                                                                                                                         Rename
                                                                                                                     </button>
                                                                                                                     <button 
-                                                                                                                        onClick={() => handleDelete('lesson', lesson.id)}
+                                                                                                                        onClick={(e) => handleDelete(e, 'lesson', lesson.id)}
                                                                                                                         className="text-gray-300 hover:text-red-500 transition-colors"
                                                                                                                         title="Delete Lesson"
                                                                                                                     >
@@ -566,11 +639,30 @@ export default function CurriculumManager() {
                                                 {subjectTitles.map(t => <option key={t.id} value={t.name} />)}
                                             </datalist>
                                         )}
-                                        {modal.type === 'subject' && (
-                                            <p className="mt-1 text-[10px] text-gray-400 italic">
-                                                Tip: Use standard names to keep the curriculum organized.
-                                            </p>
-                                        )}
+                                    </div>
+                                )}
+
+                                {/* Compulsory Toggle for Subjects */}
+                                {modal.type === 'subject' && (
+                                    <div 
+                                        className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between group cursor-pointer hover:bg-white transition-all shadow-sm" 
+                                        onClick={() => setForm({...form, is_compulsory: !form.is_compulsory})}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${form.is_compulsory ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-800 uppercase tracking-tighter">Compulsory Enrollment</p>
+                                                <p className="text-[10px] text-gray-400">Force enroll ALL students in this class</p>
+                                            </div>
+                                        </div>
+                                        <input 
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 transition-all pointer-events-none"
+                                            checked={form.is_compulsory}
+                                            readOnly
+                                        />
                                     </div>
                                 )}
 

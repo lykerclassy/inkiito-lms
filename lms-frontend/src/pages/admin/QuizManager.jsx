@@ -178,14 +178,14 @@ export default function QuizManager() {
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in duration-200">
-                        <div className="px-6 py-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                        <div className="px-6 py-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50 shrink-0">
                             <h2 className="text-xl font-black text-gray-900">{isEditing === 'new' ? 'New Quiz' : 'Edit Quiz'}</h2>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        <form onSubmit={handleSaveQuiz} className="p-8 space-y-6">
-                            <div className="space-y-4">
+                        <form onSubmit={handleSaveQuiz} className="flex flex-col flex-1 overflow-hidden">
+                            <div className="p-6 md:p-8 space-y-6 overflow-y-auto cool-scrollbar flex-1">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1.5 md:col-span-2">
                                         <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Target Subject (Concept)</label>
@@ -267,7 +267,7 @@ export default function QuizManager() {
                                 </div>
                             </div>
 
-                            <div className="flex gap-4 pt-4">
+                            <div className="p-6 border-t border-gray-50 flex gap-4 shrink-0 bg-white">
                                 <Button type="submit" className="flex-1 py-4 shadow-lg shadow-blue-100 uppercase text-xs tracking-widest" isLoading={isSubmitting}>
                                     {isEditing === 'new' ? 'Launch Quiz' : 'Update Details'}
                                 </Button>

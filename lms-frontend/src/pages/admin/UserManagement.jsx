@@ -13,6 +13,7 @@ export default function UserManagement() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('students');
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedStreamFilter, setSelectedStreamFilter] = useState('');
     const { showNotification, askConfirmation } = useNotification();
 
     // Database State
@@ -44,7 +45,7 @@ export default function UserManagement() {
     // Form Data State
     const initialFormState = {
         name: '', role: 'student', email: '', password: '',
-        admission_number: '', curriculum_id: '', academic_level_id: ''
+        admission_number: '', stream: '', curriculum_id: '', academic_level_id: ''
     };
     const [formData, setFormData] = useState(initialFormState);
 
@@ -252,6 +253,7 @@ export default function UserManagement() {
             role: user.role || 'student',
             email: user.email || '',
             admission_number: user.admission_number || '',
+            stream: user.stream || '',
             curriculum_id: user.curriculum_id?.toString() || '',
             academic_level_id: user.academic_level_id?.toString() || '',
             password: '', // Leave clear
@@ -284,7 +286,12 @@ export default function UserManagement() {
             (user.name && user.name.toLowerCase().includes(searchLower)) ||
             (user.email && user.email.toLowerCase().includes(searchLower)) ||
             (user.admission_number && user.admission_number.toLowerCase().includes(searchLower));
-        return matchesTab && matchesSearch;
+            
+        const matchesStream = activeTab === 'students' && selectedStreamFilter 
+            ? user.stream?.toUpperCase() === selectedStreamFilter.toUpperCase()
+            : true;
+
+        return matchesTab && matchesSearch && matchesStream;
     });
 
     // Compute which subjects the student is NOT currently enrolled in for the dropdown
@@ -298,14 +305,29 @@ export default function UserManagement() {
     if (error) return <div className="p-4 text-red-500 font-medium">{error}</div>;
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto relative">
+        <div className="space-y-6 max-w-7xl mx-auto relative print:m-0 print:p-0">
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+            <div className="hidden print:block text-center mb-6 border-b-2 border-gray-800 pb-4">
+                <h1 className="text-2xl font-black uppercase text-gray-900 tracking-wider">Student Access Keys Roster</h1>
+                <p className="text-gray-600 mt-1 font-medium">
+                    {selectedStreamFilter ? `STREAM: ${selectedStreamFilter}` : 'ALL STUDENTS'} 
+                    &nbsp;&nbsp;•&nbsp;&nbsp; {new Date().toLocaleDateString()}
+                </p>
+                <p className="text-gray-500 text-sm mt-2 italic">Students can use their Admission Number and Access Key to log into the portal. Please keep this safely.</p>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2 print:hidden">
                 <div>
                     <h1 className="text-lg font-bold text-gray-900">User Management</h1>
                     <p className="text-gray-500 mt-1">Manage staff access and student enrollments across frameworks.</p>
                 </div>
                 <div className="flex gap-3">
+                    {activeTab === 'students' && (
+                        <Button variant="outline" onClick={() => window.print()} className="print:hidden">
+                            <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            Print Access Keys
+                        </Button>
+                    )}
                     <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>Import CSV</Button>
                     <Button variant="primary" onClick={() => {
                         setFormData(initialFormState);
@@ -316,28 +338,42 @@ export default function UserManagement() {
                 </div>
             </div>
 
-            <Card noPadding={true} className="overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-center gap-4">
+            <Card noPadding={true} className="overflow-hidden print:shadow-none print:border-none print:bg-white print:rounded-none">
+                <div className="px-6 py-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-center gap-4 print:hidden">
                     <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
                         <button onClick={() => setActiveTab('students')} className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'students' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Students</button>
                         <button onClick={() => setActiveTab('staff')} className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'staff' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Staff & Admins</button>
                     </div>
-                    <div className="relative w-full sm:w-72">
-                        <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <input type="text" placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" />
+                    <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
+                        {activeTab === 'students' && (
+                            <select 
+                                value={selectedStreamFilter} 
+                                onChange={(e) => setSelectedStreamFilter(e.target.value)}
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                            >
+                                <option value="">All Streams</option>
+                                {Array.from(new Set(users.filter(u => u.role === 'student' && u.stream).map(u => u.stream.toUpperCase()))).sort().map(stream => (
+                                    <option key={stream} value={stream}>{stream}</option>
+                                ))}
+                            </select>
+                        )}
+                        <div className="relative w-full sm:w-72">
+                            <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <input type="text" placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full" />
+                        </div>
                     </div>
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-600">
-                        <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 uppercase  text-xs">
+                        <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 uppercase text-xs print:bg-gray-100 print:text-black print:border-gray-500">
                             <tr>
                                 {activeTab === 'students' ? (
                                     <>
                                         <th className="px-6 py-4">Name & Adm No</th>
                                         <th className="px-6 py-4">Access Key</th>
                                         <th className="px-6 py-4">Curriculum</th>
-                                        <th className="px-6 py-4">Level</th>
+                                        <th className="px-6 py-4">Level & Stream</th>
                                     </>
                                 ) : (
                                     <>
@@ -346,7 +382,7 @@ export default function UserManagement() {
                                         <th className="px-6 py-4">Status</th>
                                     </>
                                 )}
-                                <th className="px-6 py-4 text-right">Actions</th>
+                                <th className="px-6 py-4 text-right print:hidden">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -354,7 +390,7 @@ export default function UserManagement() {
                                 <tr><td colSpan="5" className="px-6 py-4 text-center text-gray-500">No users found.</td></tr>
                             ) : (
                                 filteredUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                    <tr key={user.id} className="hover:bg-gray-50 transition-colors print:border-b print:border-gray-300">
                                         {activeTab === 'students' ? (
                                             <>
                                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -362,10 +398,13 @@ export default function UserManagement() {
                                                     <div className="text-gray-500 text-xs mt-0.5">{user.admission_number || 'N/A'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="font-mono bg-gray-100 text-gray-800 px-2 py-1 rounded border border-gray-200 text-xs font-bold">{user.access_key || '------'}</span>
+                                                    <span className="font-mono bg-gray-100 text-gray-800 px-2 py-1 rounded border border-gray-200 text-xs font-bold print:border-none print:px-0 print:bg-transparent print:text-black print:text-base">{user.access_key || '------'}</span>
                                                 </td>
                                                 <td className="px-6 py-4 font-medium text-gray-800">{user.curriculum?.name || 'Unassigned'}</td>
-                                                <td className="px-6 py-4">{user.academic_level?.name || 'Unassigned'}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-gray-900">{user.academic_level?.name || 'Unassigned'}</div>
+                                                    {user.stream && <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">{user.stream}</div>}
+                                                </td>
                                             </>
                                         ) : (
                                             <>
@@ -381,7 +420,7 @@ export default function UserManagement() {
                                                 <td className="px-6 py-4 text-green-600 font-medium text-sm">Active</td>
                                             </>
                                         )}
-                                        <td className="px-6 py-4 flex justify-end gap-2 items-center">
+                                        <td className="px-6 py-4 flex justify-end gap-2 items-center print:hidden">
                                             {activeTab === 'students' && (
                                                 <>
                                                     <button 
@@ -463,9 +502,15 @@ export default function UserManagement() {
                                 </div>
                                 {formData.role === 'student' ? (
                                     <>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number</label>
-                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} placeholder="e.g. IM-2026-001" />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number</label>
+                                                <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} placeholder="e.g. IM-001" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Stream (Optional)</label>
+                                                <input type="text" className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.stream} onChange={(e) => setFormData({ ...formData, stream: e.target.value.toUpperCase() })} placeholder="e.g. EAST, RED" />
+                                            </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
@@ -556,9 +601,15 @@ export default function UserManagement() {
 
                                 {formData.role === 'student' ? (
                                     <>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Admission Number</label>
-                                            <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Admission Number</label>
+                                                <input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.admission_number} onChange={(e) => setFormData({ ...formData, admission_number: e.target.value.toUpperCase() })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Stream (Optional)</label>
+                                                <input type="text" className="w-full p-2.5 border border-gray-300 rounded-lg outline-none uppercase focus:ring-2 focus:ring-blue-500" value={formData.stream} onChange={(e) => setFormData({ ...formData, stream: e.target.value.toUpperCase() })} />
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-400 mb-1.5">Access Key (Visible to Student)</label>
@@ -625,7 +676,7 @@ export default function UserManagement() {
 
                                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-xs text-blue-700 space-y-2">
                                     <p className="font-bold">CSV Required Columns:</p>
-                                    <p>Students: <code className="bg-white px-1">name, admission_number, curriculum_id, academic_level_id</code></p>
+                                    <p>Students: <code className="bg-white px-1">name, admission_number, stream, curriculum_id, academic_level_id</code></p>
                                     <p>Staff: <code className="bg-white px-1">name, email, password</code></p>
                                 </div>
 

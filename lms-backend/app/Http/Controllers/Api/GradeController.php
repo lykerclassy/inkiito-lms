@@ -11,24 +11,38 @@ class GradeController extends Controller
 {
     public function index(Request $request)
     {
-        $subjectId = $request->query('subject_id');
+        $titleId = $request->query('subject_title_id');
+        $levelId = $request->query('academic_level_id');
+        $curriculumId = $request->query('curriculum_id');
+        $user = $request->user();
         
         $query = User::where('role', 'student')
             ->with(['quizResults.lesson.subUnit.unit.subject.title', 'quizAttempts.quiz.subjectTitle', 'assignmentSubmissions.assignment.subjectTitle', 'academicLevel']);
 
-        if ($subjectId) {
-            $query->whereHas('subjects', function($q) use ($subjectId) {
-                $q->where('subjects.id', $subjectId);
+        // Strict Curriculum Isolation
+        if ($user && $user->role === 'student') {
+            $query->where('curriculum_id', $user->curriculum_id);
+        } elseif ($curriculumId) {
+            $query->where('curriculum_id', $curriculumId);
+        }
+
+        if ($levelId) {
+            $query->where('academic_level_id', $levelId);
+        }
+
+        if ($titleId) {
+            $query->whereHas('subjects', function($q) use ($titleId) {
+                $q->where('subject_title_id', $titleId);
             });
         }
 
         $students = $query->get();
 
-        $gradebook = $students->map(function ($student) use ($subjectId) {
+        $gradebook = $students->map(function ($student) use ($titleId) {
             $quizResults = $student->quizResults;
-            if ($subjectId) {
-                $quizResults = $quizResults->filter(function($qr) use ($subjectId) {
-                    return $qr->lesson?->subUnit?->unit?->subject_id == $subjectId;
+            if ($titleId) {
+                $quizResults = $quizResults->filter(function($qr) use ($titleId) {
+                    return $qr->lesson?->subUnit?->unit?->subject?->subject_title_id == $titleId;
                 });
             }
             $totalQuizzes = $quizResults->count();
@@ -36,16 +50,9 @@ class GradeController extends Controller
             $quizAvg = $totalQuizzes > 0 ? ($correctQuizzes / $totalQuizzes) * 100 : 0;
 
             $quizAttempts = $student->quizAttempts;
-            if ($subjectId) {
-                $subject = Subject::find($subjectId);
-                $titleId = $subject?->subject_title_id;
-                $levelId = $subject?->academic_level_id;
-                
-                $quizAttempts = $quizAttempts->filter(function($qa) use ($titleId, $levelId) {
-                    $quiz = $qa->quiz;
-                    if (!$quiz) return false;
-                    return $quiz->subject_title_id == $titleId && 
-                           ($quiz->academic_level_id === null || $quiz->academic_level_id == $levelId);
+            if ($titleId) {
+                $quizAttempts = $quizAttempts->filter(function($qa) use ($titleId) {
+                    return $qa->quiz?->subject_title_id == $titleId;
                 });
             }
             $standaloneQuizAvg = $quizAttempts->count() > 0 
@@ -53,16 +60,9 @@ class GradeController extends Controller
                 : 0;
 
             $assignmentSubmissions = $student->assignmentSubmissions;
-            if ($subjectId) {
-                $subject = Subject::find($subjectId);
-                $titleId = $subject?->subject_title_id;
-                $levelId = $subject?->academic_level_id;
-
-                $assignmentSubmissions = $assignmentSubmissions->filter(function($as) use ($titleId, $levelId) {
-                    $assignment = $as->assignment;
-                    if (!$assignment) return false;
-                    return $assignment->subject_title_id == $titleId && 
-                           ($assignment->academic_level_id === null || $assignment->academic_level_id == $levelId);
+            if ($titleId) {
+                $assignmentSubmissions = $assignmentSubmissions->filter(function($as) use ($titleId) {
+                    return $as->assignment?->subject_title_id == $titleId;
                 });
             }
             $assignmentAvg = $assignmentSubmissions->avg('score') ?? 0;
@@ -98,11 +98,22 @@ class GradeController extends Controller
             'atRiskCount' => $gradebook->where('flagged', true)->count()
         ];
 
+        $subjectTitles = \App\Models\SubjectTitle::orderBy('name')->get();
+        if ($user->role === 'student') {
+            $subjectTitles = $user->subjects()->with('title')->get()
+                                  ->pluck('title')
+                                  ->filter()
+                                  ->unique('id')
+                                  ->values();
+        }
+
         return response()->json([
             'gradebook' => $gradebook,
             'leaderboard' => $leaderboard,
             'stats' => $stats,
-            'subjects' => Subject::with(['title', 'academicLevel'])->get()
+            'subject_titles' => $subjectTitles,
+            'academic_levels' => \App\Models\AcademicLevel::all(),
+            'curriculums' => \App\Models\Curriculum::all()
         ]);
     }
 

@@ -35,6 +35,7 @@ class AssignmentController extends Controller
             'subject_title_id' => 'required|exists:subject_titles,id',
             'academic_level_id' => 'nullable|exists:academic_levels,id',
             'due_date' => 'required|date',
+            'google_form_url' => 'nullable|url',
         ]);
 
         $user = $request->user();
@@ -59,6 +60,7 @@ class AssignmentController extends Controller
             'type' => $request->type ?? 'Homework',
             'due_date' => $request->due_date,
             'description' => $request->description,
+            'google_form_url' => $request->google_form_url,
             'content' => $initialContent, 
             'expected_submission_type' => 'complex'
         ]);
@@ -85,7 +87,7 @@ class AssignmentController extends Controller
 
     public function updateContent(Request $request, $id)
     {
-        $request->validate(['blocks' => 'required|array']);
+        $request->validate(['blocks' => 'present|array']);
         $assignment = Assignment::findOrFail($id);
         $user = $request->user();
 
@@ -190,7 +192,7 @@ class AssignmentController extends Controller
     public function submitWork(Request $request, $assignmentId)
     {
         $user = $request->user();
-        $request->validate(['answers' => 'required|array']);
+        $request->validate(['answers' => 'present|array']);
 
         $assignment = Assignment::findOrFail($assignmentId);
         $blocks = json_decode($assignment->content, true) ?? [];
@@ -232,14 +234,25 @@ class AssignmentController extends Controller
                         $pointsEarned = $pointsAvailable;
                     }
                 } elseif ($block['type'] === 'checkboxes') {
-                    // Array matching
                     $studentArr = is_array($studentAnswer) ? $studentAnswer : [];
                     $correctArr = is_array($correctAnswer) ? $correctAnswer : [];
-                    sort($studentArr);
-                    sort($correctArr);
-                    if ($studentArr === $correctArr && count($correctArr) > 0) {
-                        $isCorrect = true;
-                        $pointsEarned = $pointsAvailable;
+                    
+                    if (count($correctArr) > 0) {
+                        // Anti-Guessing Logic:
+                        // 1. Calculate how many correct ones they picked
+                        $correctTicks = count(array_intersect($studentArr, $correctArr));
+                        // 2. Calculate how many WRONG ones they picked
+                        $wrongTicks = count(array_diff($studentArr, $correctArr));
+                        
+                        // Net score = Correct minus Wrong (prevents ticking all boxes to cheat)
+                        $netCorrect = max(0, $correctTicks - $wrongTicks);
+                        
+                        // Weighted points
+                        $pointsEarned = ($netCorrect / count($correctArr)) * $pointsAvailable;
+                        
+                        if ($pointsEarned >= $pointsAvailable && $wrongTicks === 0) {
+                            $isCorrect = true;
+                        }
                     }
                 }
 

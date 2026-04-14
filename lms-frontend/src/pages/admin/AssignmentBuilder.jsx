@@ -71,9 +71,8 @@ export default function AssignmentBuilder() {
                     const parsedBlocks = normalizedContent || [];
 
                     if (parsedBlocks.length === 0) {
-                        const initialBlock = createNewBlock('multiple_choice');
-                        setBlocks([initialBlock]);
-                        setActiveId(initialBlock.id);
+                        setBlocks([]);
+                        setActiveId(null);
                     } else {
                         // NORMALIZER: Upgrade legacy blocks and ensure correctAnswer exists
                         const normalizedBlocks = parsedBlocks.map(b => ({
@@ -95,9 +94,8 @@ export default function AssignmentBuilder() {
                         setActiveId(normalizedBlocks[0].id);
                     }
                 } catch (e) {
-                    const initialBlock = createNewBlock('multiple_choice');
-                    setBlocks([initialBlock]);
-                    setActiveId(initialBlock.id);
+                    setBlocks([]);
+                    setActiveId(null);
                 }
             } catch (err) {
                 setError("Failed to load assignment details.");
@@ -164,10 +162,9 @@ export default function AssignmentBuilder() {
     };
 
     const removeBlock = (id) => {
-        if (blocks.length === 1) return;
         const newBlocks = blocks.filter(b => b.id !== id);
         setBlocks(newBlocks);
-        if (activeId === id) setActiveId(newBlocks[0].id);
+        if (activeId === id) setActiveId(newBlocks.length > 0 ? newBlocks[0].id : null);
     };
 
     const updateBlock = (id, field, value) => {
@@ -238,6 +235,44 @@ export default function AssignmentBuilder() {
         }));
     };
 
+    // --- SMART PASTE HANDLER ---
+    const handlePaste = (e, blockId, field, idx = null) => {
+        const html = e.clipboardData.getData('text/html');
+        if (!html) return; // Fallback to default paste if no HTML content
+
+        // Simple conversion of common tags to our supported format
+        let converted = html;
+        
+        // Remove standard HTML wrapper tags if present
+        converted = converted.replace(/<(html|body|meta|style|link)[^>]*>|<\/(html|body|meta|style|link)>/gi, '');
+        
+        // Convert Bold
+        converted = converted.replace(/<(b|strong|h[1-6])[^>]*>(.*?)<\/\1>/gi, '**$2**');
+        
+        // Convert Underline
+        converted = converted.replace(/<(u|ins)[^>]*>(.*?)<\/\1>/gi, '<u>$2</u>');
+        
+        // Convert Italics
+        converted = converted.replace(/<(i|em)[^>]*>(.*?)<\/\1>/gi, '*$2*');
+
+        // Strip other HTML tags but keep the content
+        converted = converted.replace(/<[^>]+>/g, '');
+        
+        // Decode common HTML entities
+        const doc = new DOMParser().parseFromString(converted, 'text/html');
+        converted = doc.documentElement.textContent;
+
+        if (converted) {
+            e.preventDefault();
+            const value = converted.trim();
+            if (field === 'option' && idx !== null) {
+                updateOption(blockId, idx, value);
+            } else {
+                updateBlock(blockId, field, value);
+            }
+        }
+    };
+
     // --- IMAGE UPLOAD HANDLERS ---
     const handleImageUpload = (blockId, e) => {
         const file = e.target.files?.[0];
@@ -292,7 +327,7 @@ export default function AssignmentBuilder() {
                                 <div className="h-4 w-px bg-gray-200"></div>
                                 <div className="flex items-center gap-1.5 text-blue-500 text-[10px] font-black uppercase tracking-widest">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    Math Mode: Use $...$ or $$...$$
+                                    Format: $...$ (math) • **bold** • <u>underline</u>
                                 </div>
                             </div>
                         </div>
@@ -300,7 +335,7 @@ export default function AssignmentBuilder() {
                         <div className="flex items-center justify-between pt-8 border-t border-gray-100 mt-6 w-full relative z-10">
                             <div className="flex items-center gap-2 bg-indigo-50 px-4 py-1.5 rounded-full">
                                 <span className="w-2 h-2 rounded-full bg-school-secondary animate-pulse"></span>
-                                <span className="text-xs font-bold text-school-secondary uppercase tracking-widest">Points: {blocks.reduce((sum, b) => sum + (Number(b.points) || 0), 0)}</span>
+                                <span className="text-xs font-bold text-school-secondary uppercase tracking-widest">Points: {blocks.reduce((sum, b) => sum + (b.type?.includes('info') ? 0 : (Number(b.points) || 0)), 0)}</span>
                             </div>
                             <div className="space-x-3 flex">
                                 <Button variant="outline" onClick={() => navigate('/admin/assignments')} className="border-gray-200 text-gray-500 hover:text-gray-900 font-bold uppercase text-[11px]">Cancel</Button>
@@ -310,8 +345,19 @@ export default function AssignmentBuilder() {
                     </div>
 
                     {/* BLOCKS MAP */}
-                    {blocks.map((block) => {
-                        const isActive = activeId === block.id;
+                    {blocks.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 md:py-32 text-center rounded-[2rem] border-2 border-dashed border-gray-200">
+                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-6">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                            </div>
+                            <h3 className="text-xl font-black text-gray-400 mb-2">No Native Questions Added</h3>
+                            <p className="text-sm font-semibold text-gray-400 max-w-sm px-4">
+                                If you only provided an External Link, you can just click "Save Assessment". 
+                                Otherwise, use the tools below to add structured native questions here.
+                            </p>
+                        </div>
+                    ) : blocks.map((block) => {
+                            const isActive = activeId === block.id;
 
                         return (
                             <div
@@ -339,6 +385,7 @@ export default function AssignmentBuilder() {
                                                             }}
                                                             value={block.title || ''}
                                                             onChange={(e) => updateBlock(block.id, 'title', e.target.value)}
+                                                            onPaste={(e) => handlePaste(e, block.id, 'title')}
                                                             autoFocus
                                                         ></textarea>
                                                         <div className="flex items-center gap-1.5">
@@ -429,6 +476,7 @@ export default function AssignmentBuilder() {
                                                                 disabled={block.type !== 'text_info' && block.type !== 'paragraph' && block.type !== 'short_answer'}
                                                                 value={block.description || ''}
                                                                 onChange={(e) => updateBlock(block.id, 'description', e.target.value)}
+                                                                onPaste={(e) => handlePaste(e, block.id, 'description')}
                                                             ></textarea>
                                                             {(block.type === 'text_info' || block.type === 'paragraph' || block.type === 'short_answer') && (
                                                                 <button onClick={() => setAssistantConfig({ id: block.id, field: 'description' })} className="p-1.5 mt-1 text-gray-400 hover:text-school-primary transition-colors text-xs font-bold border border-gray-100 rounded bg-gray-50/50">Σ</button>
@@ -483,6 +531,7 @@ export default function AssignmentBuilder() {
                                                                             className={`flex-1 bg-transparent border-b py-1 outline-none transition-colors ${isCorrect ? 'border-green-300 font-medium text-green-900' : 'border-transparent hover:border-gray-200'}`}
                                                                             value={opt || ''}
                                                                             onChange={(e) => updateOption(block.id, idx, e.target.value)}
+                                                                            onPaste={(e) => handlePaste(e, block.id, 'option', idx)}
                                                                         />
                                                                         <button onClick={() => setAssistantConfig({ id: block.id, field: 'option', idx })} className="opacity-0 group-hover:opacity-100 group-hover/opt:opacity-100 p-1 text-gray-400 hover:text-school-primary transition-all text-[10px] font-black border border-gray-100 rounded">Σ</button>
                                                                         <MathPreview text={opt} />
@@ -505,9 +554,9 @@ export default function AssignmentBuilder() {
                                                 {(block.type === 'image_info' || block.type === 'video_info') && (
                                                     <div className="space-y-3 mt-4">
                                                 <input
-                                                            type="url"
+                                                            type="text"
                                                             className="w-full p-3 border border-gray-200 rounded-md outline-none focus:border-school-primary"
-                                                            placeholder={`Paste YouTube or TikTok URL here...`}
+                                                            placeholder="Paste YouTube or TikTok URL here..."
                                                             value={block.url || ''}
                                                             onChange={(e) => updateBlock(block.id, 'url', e.target.value)}
                                                         />
@@ -619,7 +668,8 @@ export default function AssignmentBuilder() {
                                 </div>
                             </div>
                         );
-                    })}
+                        })
+                    }
                 </div>
 
                 {/* FLOATING ACTION SIDEBAR */}

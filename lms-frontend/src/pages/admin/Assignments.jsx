@@ -40,6 +40,7 @@ export default function AdminAssignments() {
         type: 'Homework',
         due_date: '',
         description: '',
+        google_form_url: '',
     };
 
     const [formData, setFormData] = useState(initialFormState);
@@ -95,6 +96,7 @@ export default function AdminAssignments() {
             type: assignment.type,
             due_date: assignment.due_date,
             description: assignment.description || '',
+            google_form_url: assignment.google_form_url || '',
         });
         setIsModalOpen(true);
     };
@@ -299,10 +301,20 @@ export default function AdminAssignments() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Summary / Description (Optional)</label>
                                     <input type="text" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Short description for the table view" />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">External Link (Google Form, Survey, etc) (Optional)</label>
+                                    <input type="text" value={formData.google_form_url} onChange={(e) => {
+                                        let val = e.target.value;
+                                        if (val.includes('<iframe') && val.match(/src=["']([^"']+)["']/)) {
+                                            val = val.match(/src=["']([^"']+)["']/)[1];
+                                        }
+                                        setFormData({ ...formData, google_form_url: val });
+                                    }} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-school-primary" placeholder="Paste URL or Embed Code here..." />
+                                </div>
 
                                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800 flex gap-3 mt-4">
                                     <svg className="w-10 h-10 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    <p>You will build the actual questions (Short answer, Biology diagrams, Long answer essays, etc.) on the next screen after saving these details.</p>
+                                    <p>You can optionally build custom structured questions (Short answer, Biology diagrams, Long answer essays, etc.) on the next screen after saving these details, OR just provide the external link above if you only want students to click it, complete it externally, and return here to mark it complete.</p>
                                 </div>
                             </div>
 

@@ -32,6 +32,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|string|email|max:255|unique:users',
             'admission_number' => 'nullable|string|max:50|unique:users',
+            'stream' => 'nullable|string|max:100',
             'password' => $request->role === 'student' ? 'nullable' : 'required|string|min:6',
             'role' => 'required|string|in:admin,principal,deputy_principal,dos,class_teacher,teacher,student',
         ]);
@@ -68,12 +69,25 @@ class UserController extends Controller
             $data['password'] = Hash::make($accessKey); // Keeping password in sync just in case
             $data['curriculum_id'] = $request->curriculum_id ?? 1;
             $data['academic_level_id'] = $request->academic_level_id ?? 1;
+            $data['stream'] = $request->stream;
         } else {
             // Staff use email and password
             $data['password'] = Hash::make($request->password);
         }
 
         $user = User::create($data);
+
+        // Auto-enroll in compulsory subjects if they are a student
+        if ($user->role === 'student' && $user->academic_level_id) {
+            $compulsorySubjects = \App\Models\Subject::where('academic_level_id', $user->academic_level_id)
+                ->where('is_compulsory', true)
+                ->pluck('id');
+            if ($compulsorySubjects->count() > 0) {
+                $user->subjects()->syncWithoutDetaching($compulsorySubjects->mapWithKeys(function ($id) {
+                    return [$id => ['status' => 'active']];
+                }));
+            }
+        }
 
         return response()->json([
             'message' => 'User created successfully', 
@@ -99,6 +113,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|string|email|max:255|unique:users,email,' . $id,
             'admission_number' => 'nullable|string|max:50|unique:users,admission_number,' . $id,
+            'stream' => 'nullable|string|max:100',
             'role' => 'required|string|in:' . implode(',', $allowedRoles),
             'password' => 'nullable|string|min:6',
             'access_key' => 'nullable|string'
@@ -119,7 +134,7 @@ class UserController extends Controller
             return response()->json(['message' => 'Assigning the developer role is restricted.'], 403);
         }
 
-        $data = $request->only(['name', 'email', 'admission_number', 'role', 'curriculum_id', 'academic_level_id']);
+        $data = $request->only(['name', 'email', 'admission_number', 'stream', 'role', 'curriculum_id', 'academic_level_id']);
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);
@@ -189,6 +204,7 @@ class UserController extends Controller
                             'password' => Hash::make($accessKey),
                             'curriculum_id' => $data['curriculum_id'] ?? 1,
                             'academic_level_id' => $data['academic_level_id'] ?? 1,
+                            'stream' => $data['stream'] ?? null,
                         ]);
                     } else {
                         User::create([
@@ -296,5 +312,19 @@ class UserController extends Controller
             ->get(['id', 'name', 'role', 'email']);
             
         return response()->json($staff);
+    }
+
+    /**
+     * Get students that are currently active online (within the last 5 minutes).
+     */
+    public function getOnlineStudents()
+    {
+        $activeStudents = User::where('role', 'student')
+            ->whereNotNull('last_seen_at')
+            ->where('last_seen_at', '>=', now()->subMinutes(5)) // Strict 5-minute activity window
+            ->orderBy('last_seen_at', 'desc')
+            ->get(['id', 'name', 'avatar', 'last_seen_at', 'role']);
+            
+        return response()->json($activeStudents);
     }
 }

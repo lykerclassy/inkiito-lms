@@ -26,7 +26,10 @@ class User extends Authenticatable
         'role',
         'curriculum_id',
         'academic_level_id',
+        'stream',
         'target_career_id',
+        'gamification_points',
+        'last_seen_at',
     ];
 
     /**
@@ -46,7 +49,26 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'last_seen_at' => 'datetime',
     ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
+    protected $appends = ['is_online'];
+
+    /**
+     * Determine if the user has been seen in the last 5 minutes.
+     */
+    public function getIsOnlineAttribute()
+    {
+        if (!$this->last_seen_at) {
+            return false;
+        }
+        return $this->last_seen_at->gt(now()->subMinutes(5));
+    }
 
     /**
      * Get the curriculum associated with the user.

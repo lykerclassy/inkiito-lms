@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import { DashboardSkeleton } from '../../components/common/Skeleton';
-import api from '../../services/api';
+import api, { getMediaUrl } from '../../services/api';
 
 function StatCard({ icon, value, label, trend, color }) {
     return (
@@ -101,6 +101,7 @@ export default function AdminDashboard() {
     const navigate = useNavigate();
     const [stats, setStats] = useState([]);
     const [items, setItems] = useState([]);
+    const [onlineStudents, setOnlineStudents] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -120,6 +121,8 @@ export default function AdminDashboard() {
     useEffect(() => {
         if (!user) return;
         setIsLoading(true);
+
+        // Fetch primary dashboard data
         api.get('dashboard')
             .then(res => {
                 setStats(res.data.stats || []);
@@ -130,6 +133,17 @@ export default function AdminDashboard() {
                 setError('Failed to load dashboard data.');
             })
             .finally(() => setIsLoading(false));
+
+        // Poll for active online students
+        const fetchOnline = () => {
+            api.get('online-students')
+               .then(res => setOnlineStudents(res.data))
+               .catch(err => console.error('Failed to fetch online students', err));
+        };
+        fetchOnline();
+        const interval = setInterval(fetchOnline, 30000); // 30 seconds polling
+        
+        return () => clearInterval(interval);
     }, [user]);
 
     if (isLoading) return <DashboardSkeleton />;
@@ -230,6 +244,54 @@ export default function AdminDashboard() {
                     ))}
                 </div>
             )}
+
+            {/* Live Campus Horizontal Slider (Instagram Stories Style) */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 animate-in slide-in-from-bottom duration-500">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                    <h2 className="text-sm font-semibold text-gray-800 tracking-tight">Live Campus</h2>
+                    <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-green-700 bg-green-100 px-2 py-0.5 rounded-md ml-auto">
+                        {onlineStudents.length} Online
+                    </span>
+                </div>
+                
+                {onlineStudents.length > 0 ? (
+                    <div className="flex gap-4 overflow-x-auto pb-2 pt-1 px-1 cool-scrollbar snap-x">
+                        {onlineStudents.map(student => (
+                            <div key={student.id} className="flex flex-col items-center gap-1.5 flex-shrink-0 snap-start group cursor-default w-[64px]" title={student.name}>
+                                <div className="relative">
+                                    <div className="w-12 h-12 rounded-full border-[2.5px] border-green-500 p-[2px] group-hover:scale-105 transition-transform duration-200">
+                                        <div className="w-full h-full rounded-full bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm overflow-hidden shadow-sm shadow-indigo-100">
+                                            {student.avatar ? (
+                                                <img src={getMediaUrl(student.avatar)} alt={student.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                student.name.charAt(0).toUpperCase()
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm ring-2 ring-green-100"></div>
+                                </div>
+                                <p className="text-[10px] font-bold text-gray-700 truncate w-full text-center px-0.5">{student.name.split(' ')[0]}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-center py-4 px-2 text-center border-2 border-dashed border-gray-100 rounded-xl">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" /></svg>
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-gray-500">Campus is quiet</p>
+                                <p className="text-[10px] text-gray-400">Waiting for students to log in...</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

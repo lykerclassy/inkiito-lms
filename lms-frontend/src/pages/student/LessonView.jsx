@@ -422,8 +422,21 @@ export default function LessonView() {
             element.innerHTML = htmlContent;
             document.body.appendChild(element); // Must be in DOM for CSS loading
             
-            // Wait a tiny bit for any remaining assets
-            await new Promise(r => setTimeout(r, 500));
+            // Render Math (LaTeX) in the PDF element
+            if (typeof window.renderMathInElement === 'function') {
+                window.renderMathInElement(element, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '$', right: '$', display: false },
+                        { left: '\\(', right: '\\)', display: false },
+                        { left: '\\[', right: '\\]', display: true }
+                    ],
+                    throwOnError: false
+                });
+            }
+
+            // Wait a bit for assets and KaTeX layout to settle
+            await new Promise(r => setTimeout(r, 800));
 
             const worker = html2pdf().set(opt).from(element);
             

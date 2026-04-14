@@ -29,6 +29,7 @@ import Downloadables from './pages/student/Downloadables';
 import CampusCommunities from './pages/student/CampusCommunities';
 import CommunityView from './pages/student/CommunityView';
 import PowerAI from './pages/student/PowerAI';
+import DailySpin from './pages/student/DailySpin';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -49,6 +50,7 @@ import QuizQuestionEditor from './pages/admin/QuizQuestionEditor';
 import LiveClasses from './pages/admin/LiveClasses';
 import SupportAdmin from './pages/admin/SupportAdmin';
 import StudentProfileView from './pages/admin/StudentProfileView';
+import AttendanceReport from './pages/admin/AttendanceReport';
 
 // Shared Pages
 import Profile from './pages/common/Profile';
@@ -188,6 +190,7 @@ export default function App() {
                 <Route path="communities/:id" element={<CommunityView />} />
                 <Route path="live-classes" element={<LiveClasses />} />
                 <Route path="ai-chat" element={<PowerAI />} />
+                <Route path="daily-spin" element={<DailySpin />} />
               </Routes>
             </StudentLayout>
           </ProtectedRoute>
@@ -231,6 +234,11 @@ export default function App() {
                 <Route path="users" element={
                   <ProtectedRoute allowedRoles={MANAGEMENT}>
                     <UserManagement />
+                  </ProtectedRoute>
+                } />
+                <Route path="attendance" element={
+                  <ProtectedRoute allowedRoles={MANAGEMENT}>
+                    <AttendanceReport />
                   </ProtectedRoute>
                 } />
                 <Route path="users/:id/profile" element={

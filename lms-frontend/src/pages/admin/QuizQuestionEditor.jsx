@@ -5,6 +5,7 @@ import Button from '../../components/common/Button';
 import PageLoader from '../../components/common/PageLoader';
 import api, { getMediaUrl } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import MathText from '../../components/common/MathText';
 
 export default function QuizQuestionEditor() {
     const { id } = useParams();
@@ -14,6 +15,34 @@ export default function QuizQuestionEditor() {
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(null); // Question object or 'new'
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // --- SMART PASTE HANDLER ---
+    const handlePaste = (e, field, idx = null) => {
+        const html = e.clipboardData.getData('text/html');
+        if (!html) return;
+
+        let converted = html;
+        converted = converted.replace(/<(html|body|meta|style|link)[^>]*>|<\/(html|body|meta|style|link)>/gi, '');
+        converted = converted.replace(/<(b|strong|h[1-6])[^>]*>(.*?)<\/\1>/gi, '**$2**');
+        converted = converted.replace(/<(u|ins)[^>]*>(.*?)<\/\1>/gi, '<u>$2</u>');
+        converted = converted.replace(/<(i|em)[^>]*>(.*?)<\/\1>/gi, '*$2*');
+        converted = converted.replace(/<[^>]+>/g, '');
+        
+        const doc = new DOMParser().parseFromString(converted, 'text/html');
+        converted = doc.documentElement.textContent;
+
+        if (converted) {
+            e.preventDefault();
+            const value = converted.trim();
+            if (field === 'options' && idx !== null) {
+                const newOpts = [...formData.options];
+                newOpts[idx] = value;
+                setFormData({ ...formData, options: newOpts });
+            } else {
+                setFormData({ ...formData, [field]: value });
+            }
+        }
+    };
 
     // Question Form
     const [formData, setFormData] = useState({
@@ -187,13 +216,15 @@ export default function QuizQuestionEditor() {
                                         />
                                     </div>
                                 )}
-                                <p className="text-gray-900 font-bold text-lg mb-6">{q.question_text}</p>
+                                <p className="text-gray-900 font-bold text-lg mb-6">
+                                    <MathText text={q.question_text} />
+                                </p>
 
                                 {q.options && Array.isArray(q.options) && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {q.options.map((opt, i) => (
                                             <div key={i} className={`p-3 rounded-xl border text-sm font-semibold transition-all ${opt === q.correct_answer ? 'bg-green-50 border-green-200 text-green-700 ring-2 ring-green-100' : 'bg-gray-50 border-gray-100 text-gray-500'}`}>
-                                                {String.fromCharCode(65 + i)}. {opt}
+                                                {String.fromCharCode(65 + i)}. <MathText text={opt} />
                                                 {opt === q.correct_answer && <span className="ml-2 text-[10px] uppercase font-black">✓ Correct</span>}
                                             </div>
                                         ))}
@@ -257,6 +288,7 @@ export default function QuizQuestionEditor() {
                                             className="w-full p-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-gray-900 resize-none"
                                             value={formData.question_text}
                                             onChange={(e) => setFormData({ ...formData, question_text: e.target.value })}
+                                            onPaste={(e) => handlePaste(e, 'question_text')}
                                         />
                                     </div>
 
@@ -341,6 +373,7 @@ export default function QuizQuestionEditor() {
                                                                 newOpts[i] = e.target.value;
                                                                 setFormData({ ...formData, options: newOpts });
                                                             }}
+                                                            onPaste={(e) => handlePaste(e, 'options', i)}
                                                         />
                                                         <button
                                                             type="button"

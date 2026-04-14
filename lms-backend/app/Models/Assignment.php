@@ -17,6 +17,7 @@ class Assignment extends Model
         'type', 
         'due_date', 
         'description', 
+        'google_form_url',
         'content', 
         'media_url', 
         'expected_submission_type'
